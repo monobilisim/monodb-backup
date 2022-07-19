@@ -1,0 +1,6 @@
+backupDestination: /mnt/tobb-nfs/stage/postgresql/keycloak/backups
+databases:
+  - keycloak_sand
+mattermost:
+  channelId: channelid
+  apiToken: apitoken
