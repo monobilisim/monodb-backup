@@ -1,6 +1,17 @@
-backupDestination: /mnt/tobb-nfs/stage/postgresql/keycloak/backups
+backupDestination: /var/backups
 databases:
-  - keycloak_sand
-mattermost:
-  channelId: channelid
-  apiToken: apitoken
+  - db1
+  - db2
+s3:
+  enabled: bool
+  region: aws region
+  bucket: s3 bucket
+  path: backup path
+  accessKey: s3 access key
+  secretKey: s3 secret key
+  removeLocal: true # remove local backup on successful upload
+notify:
+  mattermost:
+    enabled: bool
+    channelId: channel id
+    apiToken: api token

@@ -9,11 +9,23 @@ import (
 
 type Params struct {
 	BackupDestination string
-	Databases []string
-	Mattermost struct{
-		Url string
-		ChannelId string
-		ApiToken string
+	Databases         []string
+	Notify            struct {
+		Mattermost struct {
+			Enabled   bool
+			Url       string
+			ChannelId string
+			ApiToken  string
+		}
+	}
+	S3 struct {
+		Enabled     bool
+		Region      string
+		Bucket      string
+		Path        string
+		AccessKey   string
+		SecretKey   string
+		RemoveLocal bool
 	}
 	Fqdn string
 }

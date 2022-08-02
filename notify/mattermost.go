@@ -33,12 +33,16 @@ func NewMattermost(params *config.Params) (m *Mattermost) {
 }
 
 func (m *Mattermost) Notify(message string, pretext string, text string) {
+	if !m.p.Notify.Mattermost.Enabled {
+		return
+	}
+
 	if m.p.Fqdn != "" {
 		message = "**[" + m.p.Fqdn + "]** " + message
 	}
 
 	data := Payload{
-		ChannelID: m.p.Mattermost.ChannelId,
+		ChannelID: m.p.Notify.Mattermost.ChannelId,
 		Message:   message,
 	}
 
@@ -59,13 +63,13 @@ func (m *Mattermost) Notify(message string, pretext string, text string) {
 	}
 	body := bytes.NewReader(payloadBytes)
 
-	req, err := http.NewRequest("POST", m.p.Mattermost.Url + "/api/v4/posts", body)
+	req, err := http.NewRequest("POST", m.p.Notify.Mattermost.Url + "/api/v4/posts", body)
 	if err != nil {
 		log.Printf("Error creating POST request for Mattermost: %q", err.Error())
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+m.p.Mattermost.ApiToken)
+	req.Header.Set("Authorization", "Bearer "+m.p.Notify.Mattermost.ApiToken)
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
