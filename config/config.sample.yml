@@ -11,6 +11,13 @@ s3:
   secretKey: s3 secret key
   removeLocal: true # remove local backup on successful upload
 notify:
+  email:
+    enabled: bool
+    smtpHost: smtp.gmail.com
+    smtpPort: 587
+    from: sender@example.com
+    password: 123456
+    to: recipient@example.com
   mattermost:
     enabled: bool
     channelId: channel id

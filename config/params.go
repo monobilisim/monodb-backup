@@ -11,6 +11,14 @@ type Params struct {
 	BackupDestination string
 	Databases         []string
 	Notify            struct {
+		Email struct {
+			Enabled  bool
+			SmtpHost string
+			SmtpPort string
+			From     string
+			Password string
+			To       string
+		}
 		Mattermost struct {
 			Enabled   bool
 			Url       string

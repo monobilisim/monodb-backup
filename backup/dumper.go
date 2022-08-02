@@ -62,6 +62,7 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 				dfp + " dosyasına dump alınamadı:",
 				err.Error(),
 			)
+			notify.Email(d.p, "Yedekleme hatası", db + " veritabanı yedeklenirken hata oluştu. " + dfp + " dosyasına dump alınamadı: " + err.Error())
 			return
 		}
 	}
@@ -72,6 +73,7 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 				dfp + " dosyasına dump alınamadı:",
 				err.Error(),
 			)
+			notify.Email(d.p, "Yedekleme hatası", db + " veritabanı yedeklenirken hata oluştu. " + dfp + " dosyasına dump alınamadı: " + err.Error())
 			return
 		}
 	}
@@ -84,6 +86,7 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 				dfp + " dump dosyası " + tfp + " hedefine arşivlenemedi.",
 				err.Error(),
 			)
+			notify.Email(d.p, "Yedekleme hatası", db + " veritabanı yedeklenirken hata oluştu. " + dfp + " dump dosyası " + tfp + " hedefine arşivlenemedi: " + err.Error())
 			return
 		}
 	}
@@ -93,7 +96,8 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 	if d.p.S3.Enabled {
 		uploader, err := newS3Uploader(d.p.S3.Region, d.p.S3.AccessKey, d.p.S3.SecretKey)
 		if err != nil {
-			d.m.Notify(db + " veritabanını S3'e yüklemek için bağlantı sağlanamadı", "", err.Error())
+			d.m.Notify(db + " veritabanı yedeğini S3'e yüklemek için bağlantı sağlanamadı", "", err.Error())
+			notify.Email(d.p, "Yedekleme hatası", db + " veritabanı yedeğini S3'e yüklemek için bağlantı sağlanamadı: " + err.Error())
 		} else {
 			target := y + "/" + m + "/" + db + "--" + now + ".tar.gz"
 			if d.p.S3.Path != "" {
@@ -101,8 +105,17 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 			}
 			err = uploadFileToS3(uploader, tfp, d.p.S3.Bucket, target)
 			if err != nil {
-				d.m.Notify(db+" veritabanı S3'e yüklenemedi", "", err.Error())
+				d.m.Notify(db+" veritabanı yedeği S3'e yüklenemedi", "", err.Error())
+				notify.Email(d.p, "Yedekleme hatası", db + " veritabanı yedeği S3'e yüklenemedi: " + err.Error())
+			} else {
+				d.m.Notify(db+" veritabanı S3'e yüklendi.", "", "")
+				notify.Email(d.p, "Yedekleme ve S3'e yükleme başarılı", db + " veritabanı yedeği S3'e yüklendi.")
+				if d.p.S3.RemoveLocal {
+					_ = os.Remove(tfp)
+				}
 			}
 		}
+	} else {
+		notify.Email(d.p, "Yedekleme başarılı", db + " veritabanı " + tfp + " konumuna yedeklendi.")
 	}
 }
