@@ -23,15 +23,15 @@ func newS3Uploader(region, accessKey, secretKey string) (*s3manager.Uploader, er
 	return uploader, nil
 }
 
-func uploadFileToS3(uploader *s3manager.Uploader, filePath string, bucketName string, fileName string) error {
-	file, err := os.Open(filePath)
+func uploadFileToS3(uploader *s3manager.Uploader, src string, bucketName string, dst string) error {
+	file, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 	_, err = uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(bucketName),
-		Key:    aws.String(fileName),
+		Key:    aws.String(dst),
 		Body:   file,
 	})
 	return err

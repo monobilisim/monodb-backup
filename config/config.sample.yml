@@ -3,16 +3,25 @@ databases:
   - db1
   - db2
 s3:
-  enabled: bool
+  enabled: true
   region: aws region
   bucket: s3 bucket
   path: backup path
   accessKey: s3 access key
   secretKey: s3 secret key
   removeLocal: true # remove local backup on successful upload
+minio:
+  enabled: true
+  endpoint: minio endpoint
+  bucket: minio bucket
+  path: backup path
+  accessKey: minio access key
+  secretKey: minio secret key
+  secure: false
+  insecureSkipVerify: false
 notify:
   email:
-    enabled: bool
+    enabled: true
     smtpHost: smtp.gmail.com
     smtpPort: 587
     from: sender@example.com

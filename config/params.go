@@ -35,6 +35,16 @@ type Params struct {
 		SecretKey   string
 		RemoveLocal bool
 	}
+	Minio struct{
+		Enabled bool
+		Endpoint string
+		Bucket string
+		Path string
+		AccessKey string
+		SecretKey string
+		Secure bool
+		InsecureSkipVerify bool
+	}
 	Fqdn string
 }
 
