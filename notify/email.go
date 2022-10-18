@@ -5,8 +5,12 @@ import (
 	"pgsql-backup/config"
 )
 
-func Email(params *config.Params, subject string, message string) {
+func Email(params *config.Params, subject string, message string, isError bool) {
 	if !params.Notify.Email.Enabled {
+		return
+	}
+
+	if !isError && params.Notify.OnlyOnError {
 		return
 	}
 

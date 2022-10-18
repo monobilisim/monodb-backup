@@ -32,8 +32,12 @@ func NewMattermost(params *config.Params) (m *Mattermost) {
 	return
 }
 
-func (m *Mattermost) Notify(message string, pretext string, text string) {
+func (m *Mattermost) Notify(message string, pretext string, text string, isError bool) {
 	if !m.p.Notify.Mattermost.Enabled {
+		return
+	}
+
+	if !isError && m.p.Notify.OnlyOnError {
 		return
 	}
 

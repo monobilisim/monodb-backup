@@ -2,6 +2,7 @@ backupDestination: /var/backups
 databases:
   - db1
   - db2
+removeLocal: true
 s3:
   enabled: true
   region: aws region
@@ -9,7 +10,6 @@ s3:
   path: backup path
   accessKey: s3 access key
   secretKey: s3 secret key
-  removeLocal: true # remove local backup on successful upload
 minio:
   enabled: true
   endpoint: minio endpoint
@@ -20,6 +20,7 @@ minio:
   secure: false
   insecureSkipVerify: false
 notify:
+  onlyOnError: true
   email:
     enabled: true
     smtpHost: smtp.gmail.com

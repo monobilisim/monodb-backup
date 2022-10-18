@@ -11,6 +11,7 @@ import (
 type Dumper struct {
 	p *config.Params
 	m *notify.Mattermost
+	l Logger
 }
 
 type backupStatus struct {
@@ -24,20 +25,23 @@ type uploadStatus struct {
 	msg string
 }
 
-func NewDumper(params *config.Params) (d *Dumper) {
+func NewDumper(params *config.Params, logger Logger) (d *Dumper) {
 	d = &Dumper{
 		p: params,
 		m: notify.NewMattermost(params),
+		l: logger,
 	}
 	return
 }
 
 func (d *Dumper) Dump() {
-	d.m.Notify("PostgreSQL veritabanı yedeklemesi başladı.", "", "")
+	d.l.Info("PostgreSQL veritabanı yedeklemesi başladı.")
+	d.m.Notify("PostgreSQL veritabanı yedeklemesi başladı.", "", "", false)
 	for _, db := range d.p.Databases {
 		d.dumpSingleDb(db, d.p.BackupDestination)
 	}
-	d.m.Notify("PostgreSQL veritabanı yedeklemesi sona erdi.", "", "")
+	d.l.Info("PostgreSQL veritabanı yedeklemesi sona erdi.")
+	d.m.Notify("PostgreSQL veritabanı yedeklemesi sona erdi.", "", "", false)
 }
 
 func (d *Dumper) dumpSingleDb(db string, dst string) {
@@ -48,13 +52,32 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 	_ = os.MkdirAll(dst + "/" + y + "/" + m, os.ModePerm)
 	tfp := dst + "/" + y + "/" + m + "/" + db + "--" + now + ".tar.gz"
 
+	d.l.InfoWithFields(map[string]interface{}{
+		"db": db,
+		"dump konumu": dfp,
+		"sıkıştırılmış dosya konumu": tfp,
+	},
+		"Veritabanı yedekleniyor...",
+	)
+
 	cmd := exec.Command("/usr/bin/pg_dump", db)
 	f, err := os.Create(dfp)
 	if err != nil {
+
+		d.l.ErrorWithFields(map[string]interface{}{
+			"db": db,
+			"dump konumu": dfp,
+			"sıkıştırılmış dosya konumu": tfp,
+			"error": err.Error(),
+		},
+			"Çıktı dosyası oluşturulamadı.",
+		)
+
 		d.m.Notify(
 			db + " veritabanı yedeklenirken hata oluştu.",
 			"Çıktı dosyası oluşturulamadı:",
 			err.Error(),
+			true,
 		)
 		return
 	}
@@ -68,23 +91,43 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 
 	err = cmd.Start(); if err != nil {
 		if err != nil {
+			d.l.ErrorWithFields(map[string]interface{}{
+				"db": db,
+				"dump konumu": dfp,
+				"sıkıştırılmış dosya konumu": tfp,
+				"error": err.Error(),
+			},
+				"Dump alınamadı.",
+			)
+
 			d.m.Notify(
 				db + " veritabanı yedeklenirken hata oluştu.",
 				dfp + " dosyasına dump alınamadı:",
 				err.Error(),
+				true,
 			)
-			notify.Email(d.p, "Yedekleme hatası", db + " veritabanı yedeklenirken hata oluştu. " + dfp + " dosyasına dump alınamadı: " + err.Error())
+			notify.Email(d.p, "Yedekleme hatası", db + " veritabanı yedeklenirken hata oluştu. " + dfp + " dosyasına dump alınamadı: " + err.Error(), true)
 			return
 		}
 	}
 	err = cmd.Wait(); if err != nil {
 		if err != nil {
+			d.l.ErrorWithFields(map[string]interface{}{
+				"db": db,
+				"dump konumu": dfp,
+				"sıkıştırılmış dosya konumu": tfp,
+				"error": err.Error(),
+			},
+				"Dump alınamadı.",
+			)
+
 			d.m.Notify(
 				db + " veritabanı yedeklenirken hata oluştu.",
 				dfp + " dosyasına dump alınamadı:",
 				err.Error(),
+				true,
 			)
-			notify.Email(d.p, "Yedekleme hatası", db + " veritabanı yedeklenirken hata oluştu. " + dfp + " dosyasına dump alınamadı: " + err.Error())
+			notify.Email(d.p, "Yedekleme hatası", db + " veritabanı yedeklenirken hata oluştu. " + dfp + " dosyasına dump alınamadı: " + err.Error(), true)
 			return
 		}
 	}
@@ -92,17 +135,35 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 	cmd = exec.Command("/bin/tar", "zcf", tfp, dfp)
 	err = cmd.Run(); if err != nil {
 		if err != nil {
+			d.l.ErrorWithFields(map[string]interface{}{
+				"db": db,
+				"dump konumu": dfp,
+				"sıkıştırılmış dosya konumu": tfp,
+				"error": err.Error(),
+			},
+				"Dump dosyası arşivlenemedi.",
+			)
+
 			d.m.Notify(
 				db + " veritabanı yedeklenirken hata oluştu.",
 				dfp + " dump dosyası " + tfp + " hedefine arşivlenemedi.",
 				err.Error(),
+				true,
 			)
-			notify.Email(d.p, "Yedekleme hatası", db + " veritabanı yedeklenirken hata oluştu. " + dfp + " dump dosyası " + tfp + " hedefine arşivlenemedi: " + err.Error())
+			notify.Email(d.p, "Yedekleme hatası", db + " veritabanı yedeklenirken hata oluştu. " + dfp + " dump dosyası " + tfp + " hedefine arşivlenemedi: " + err.Error(), true)
 			return
 		}
 	}
 
-	d.m.Notify(db + " veritabanı " + tfp + " konumuna yedeklendi.", "", "")
+	d.l.InfoWithFields(map[string]interface{}{
+		"db": db,
+		"dump konumu": dfp,
+		"sıkıştırılmış dosya konumu": tfp,
+	},
+		"Veritabanı yedeklendi.",
+	)
+
+	d.m.Notify(db + " veritabanı " + tfp + " konumuna yedeklendi.", "", "", false)
 
 	backupStatus := backupStatus{
 		s3:    uploadStatus{
@@ -118,10 +179,33 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 	}
 
 	if d.p.S3.Enabled {
+		d.l.InfoWithFields(map[string]interface{}{
+			"db": db,
+			"dump konumu": dfp,
+			"sıkıştırılmış dosya konumu": tfp,
+			"s3Bucket": d.p.S3.Bucket,
+			"s3Path": d.p.S3.Path,
+			"s3Region": d.p.S3.Region,
+		},
+			"Veritabanı yedeği S3'e yükleniyor...",
+		)
+
 		backupStatus.s3.enabled = true
 		uploader, err := newS3Uploader(d.p.S3.Region, d.p.S3.AccessKey, d.p.S3.SecretKey)
 		if err != nil {
-			d.m.Notify(db + " veritabanı yedeğini S3'e yüklemek için bağlantı sağlanamadı", "", err.Error())
+			d.l.ErrorWithFields(map[string]interface{}{
+				"db": db,
+				"dump konumu": dfp,
+				"sıkıştırılmış dosya konumu": tfp,
+				"s3Bucket": d.p.S3.Bucket,
+				"s3Path": d.p.S3.Path,
+				"s3Region": d.p.S3.Region,
+				"error": err.Error(),
+			},
+				"Veritabanı yedeği S3'e yüklenemedi.",
+			)
+
+			d.m.Notify(db + " veritabanı yedeğini S3'e yüklemek için bağlantı sağlanamadı", "", err.Error(), true)
 			backupStatus.s3.success = false
 			backupStatus.s3.msg = db + " veritabanı yedeğini S3'e yüklemek için bağlantı sağlanamadı: " + err.Error()
 		} else {
@@ -131,24 +215,55 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 			}
 			err = uploadFileToS3(uploader, tfp, d.p.S3.Bucket, target)
 			if err != nil {
-				d.m.Notify(db+" veritabanı yedeği S3'e yüklenemedi", "", err.Error())
+				d.l.ErrorWithFields(map[string]interface{}{
+					"db": db,
+					"dump konumu": dfp,
+					"sıkıştırılmış dosya konumu": tfp,
+					"s3Bucket": d.p.S3.Bucket,
+					"s3Path": d.p.S3.Path,
+					"s3Region": d.p.S3.Region,
+					"target": target,
+					"error": err.Error(),
+				},
+					"Veritabanı yedeği S3'e yüklenemedi.",
+				)
+
+				d.m.Notify(db+" veritabanı yedeği S3'e yüklenemedi", "", err.Error(), true)
 				backupStatus.s3.success = false
 				backupStatus.s3.msg = db + " veritabanı yedeği S3'e yüklenemedi: " + err.Error()
 			} else {
-				d.m.Notify(db+" veritabanı S3'e yüklendi.", "", "")
+				d.l.InfoWithFields(map[string]interface{}{
+					"db": db,
+					"dump konumu": dfp,
+					"sıkıştırılmış dosya konumu": tfp,
+					"s3Bucket": d.p.S3.Bucket,
+					"s3Path": d.p.S3.Path,
+					"s3Region": d.p.S3.Region,
+					"target": target,
+				},
+					"Veritabanı yedeği S3'e yüklendi.",
+				)
+
+				d.m.Notify(db+" veritabanı S3'e yüklendi.", "", "", false)
 				backupStatus.s3.success = true
 				backupStatus.s3.msg = db + " veritabanı yedeği S3'e yüklendi."
 
-				/*
-				if d.p.S3.RemoveLocal {
-					_ = os.Remove(tfp)
-				}
-				*/
 			}
 		}
 	}
 
 	if d.p.Minio.Enabled {
+		d.l.InfoWithFields(map[string]interface{}{
+			"db": db,
+			"dump konumu": dfp,
+			"sıkıştırılmış dosya konumu": tfp,
+			"minioEndpoint": d.p.Minio.Endpoint,
+			"minioBucket": d.p.Minio.Bucket,
+			"minioPath": d.p.Minio.Path,
+		},
+			"Veritabanı yedeği MinIO'ya yükleniyor...",
+		)
+
 		minioClient, err := newMinioClient(
 			d.p.Minio.Endpoint,
 			d.p.Minio.AccessKey,
@@ -156,7 +271,19 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 			d.p.Minio.Secure,
 			d.p.Minio.InsecureSkipVerify)
 		if err != nil {
-			d.m.Notify(db + " veritabanı yedeğini MinIO'ya yüklemek için bağlantı sağlanamadı", "", err.Error())
+			d.l.ErrorWithFields(map[string]interface{}{
+				"db": db,
+				"dump konumu": dfp,
+				"sıkıştırılmış dosya konumu": tfp,
+				"minioEndpoint": d.p.Minio.Endpoint,
+				"minioBucket": d.p.Minio.Bucket,
+				"minioPath": d.p.Minio.Path,
+				"error": err.Error(),
+			},
+				"Veritabanı yedeği MinIO'ya yüklenemedi.",
+			)
+
+			d.m.Notify(db + " veritabanı yedeğini MinIO'ya yüklemek için bağlantı sağlanamadı", "", err.Error(), true)
 			backupStatus.minio.success = false
 			backupStatus.minio.msg = db + " veritabanı yedeğini MinIO'ya yüklemek için bağlantı sağlanamadı: " + err.Error()
 		} else {
@@ -166,11 +293,36 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 			}
 			err = uploadFileToMinio(minioClient, tfp, d.p.Minio.Bucket, target)
 			if err != nil {
-				d.m.Notify(db+" veritabanı yedeği MinIO'ya yüklenemedi", "", err.Error())
+				d.l.ErrorWithFields(map[string]interface{}{
+					"db": db,
+					"dump konumu": dfp,
+					"sıkıştırılmış dosya konumu": tfp,
+					"minioEndpoint": d.p.Minio.Endpoint,
+					"minioBucket": d.p.Minio.Bucket,
+					"minioPath": d.p.Minio.Path,
+					"target": target,
+					"error": err.Error(),
+				},
+					"Veritabanı yedeği MinIO'ya yüklenemedi.",
+				)
+
+				d.m.Notify(db+" veritabanı yedeği MinIO'ya yüklenemedi", "", err.Error(), true)
 				backupStatus.minio.success = false
 				backupStatus.minio.msg = db + " veritabanı yedeği MinIO'ya yüklenemedi: " + err.Error()
 			} else {
-				d.m.Notify(db+" veritabanı MinIO'ya yüklendi.", "", "")
+				d.l.InfoWithFields(map[string]interface{}{
+					"db": db,
+					"dump konumu": dfp,
+					"sıkıştırılmış dosya konumu": tfp,
+					"minioEndpoint": d.p.Minio.Endpoint,
+					"minioBucket": d.p.Minio.Bucket,
+					"minioPath": d.p.Minio.Path,
+					"target": target,
+				},
+					"Veritabanı yedeği MinIO'ya yüklendi.",
+				)
+
+				d.m.Notify(db+" veritabanı MinIO'ya yüklendi.", "", "", false)
 				backupStatus.minio.success = true
 				backupStatus.minio.msg = db + " veritabanı yedeği MinIO'ya yüklendi."
 			}
@@ -178,7 +330,7 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 	}
 
 	if !backupStatus.minio.enabled && !backupStatus.s3.enabled {
-		notify.Email(d.p, "Yedekleme başarılı", db + " veritabanı " + tfp + " konumuna yedeklendi.")
+		notify.Email(d.p, "Yedekleme başarılı", db + " veritabanı " + tfp + " konumuna yedeklendi.", false)
 		return
 	}
 
@@ -203,5 +355,11 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 		body += " " + backupStatus.s3.msg
 	}
 
-	notify.Email(d.p, subject, body)
+	if (backupStatus.minio.enabled && !backupStatus.minio.success) || (backupStatus.s3.enabled && !backupStatus.s3.success) {
+		notify.Email(d.p, subject, body, true)
+	}
+
+	if d.p.RemoveLocal {
+		_ = os.Remove(tfp)
+	}
 }
