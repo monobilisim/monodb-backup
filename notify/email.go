@@ -10,25 +10,28 @@ func Email(params *config.Params, subject string, message string, isError bool) 
 		return
 	}
 
-	if !isError && params.Notify.OnlyOnError {
-		return
-	}
+	var smtpHost, smtpPort, from, password, to string
 
-	from := params.Notify.Email.From
-	password := params.Notify.Email.Password
-	to := []string{
-		params.Notify.Email.To,
+	if isError {
+		smtpHost = params.Notify.Email.Error.SmtpHost
+		smtpPort = params.Notify.Email.Error.SmtpPort
+		from = params.Notify.Email.Error.From
+		password = params.Notify.Email.Error.Password
+		to = params.Notify.Email.Error.To
+	} else {
+		smtpHost = params.Notify.Email.Info.SmtpHost
+		smtpPort = params.Notify.Email.Info.SmtpPort
+		from = params.Notify.Email.Info.From
+		password = params.Notify.Email.Info.Password
+		to = params.Notify.Email.Info.To
 	}
-
-	smtpHost := params.Notify.Email.SmtpHost
-	smtpPort := params.Notify.Email.SmtpPort
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
 
 	msg := []byte("From: " + from + "\r\n" +
-		"To: " + params.Notify.Email.To + "\r\n" +
+		"To: " + to + "\r\n" +
 		"Subject: [" + params.Fqdn + "] " + subject + "\r\n\r\n" +
 		message + "\r\n")
 
-	_ = smtp.SendMail(smtpHost+":"+smtpPort, auth, from, to, msg)
+	_ = smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, msg)
 }

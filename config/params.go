@@ -13,20 +13,15 @@ type Params struct {
 	Databases         []string
 	RemoveLocal       bool
 	Notify            struct {
-		OnlyOnError bool
 		Email       struct {
 			Enabled  bool
-			SmtpHost string
-			SmtpPort string
-			From     string
-			Password string
-			To       string
+			Info EmailConfig
+			Error EmailConfig
 		}
 		Mattermost struct {
 			Enabled   bool
-			Url       string
-			ChannelId string
-			ApiToken  string
+			Info MattermostConfig
+			Error MattermostConfig
 		}
 	}
 	S3 struct {
@@ -49,6 +44,20 @@ type Params struct {
 	}
 	Log  *log.Params
 	Fqdn string
+}
+
+type EmailConfig struct {
+	SmtpHost string
+	SmtpPort string
+	From     string
+	Password string
+	To       string
+}
+
+type MattermostConfig struct {
+	Url       string
+	ChannelId string
+	ApiToken  string
 }
 
 func NewParams() (p *Params) {

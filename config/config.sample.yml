@@ -20,15 +20,27 @@ minio:
   secure: false
   insecureSkipVerify: false
 notify:
-  onlyOnError: true
   email:
     enabled: true
-    smtpHost: smtp.gmail.com
-    smtpPort: 587
-    from: sender@example.com
-    password: 123456
-    to: recipient@example.com
+    info:
+      smtpHost: smtp.gmail.com
+      smtpPort: 587
+      from: sender@example.com
+      password: 123456
+      to: recipient@example.com
+    error:
+      smtpHost: smtp.gmail.com
+      smtpPort: 587
+      from: sender@example.com
+      password: 123456
+      to: recipient@example.com
   mattermost:
     enabled: bool
-    channelId: channel id
-    apiToken: api token
+    info:
+      url: mattermost url
+      channelId: channel id
+      apiToken: api token
+    error:
+      url: mattermost url
+      channelId: channel id
+      apiToken: api token
