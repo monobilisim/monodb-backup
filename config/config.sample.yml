@@ -44,3 +44,7 @@ notify:
       url: mattermost url
       channelId: channel id
       apiToken: api token
+
+log:
+  enabled: true
+  file: /var/log/pgsql-backup.log
