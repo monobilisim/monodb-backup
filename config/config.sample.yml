@@ -35,7 +35,7 @@ notify:
       password: 123456
       to: recipient@example.com
   mattermost:
-    enabled: bool
+    enabled: false
     info:
       url: mattermost url
       channelId: channel id

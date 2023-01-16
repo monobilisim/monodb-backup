@@ -50,6 +50,7 @@ type EmailConfig struct {
 	SmtpHost string
 	SmtpPort string
 	From     string
+	Username string
 	Password string
 	To       string
 }

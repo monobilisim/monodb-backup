@@ -5,12 +5,12 @@ import (
 	"pgsql-backup/config"
 )
 
-func Email(params *config.Params, subject string, message string, isError bool) {
+func Email(params *config.Params, subject string, message string, isError bool) error {
 	if !params.Notify.Email.Enabled {
-		return
+		return nil
 	}
 
-	var smtpHost, smtpPort, from, password, to string
+	var smtpHost, smtpPort, from, username, password, to string
 
 	if isError {
 		smtpHost = params.Notify.Email.Error.SmtpHost
@@ -28,12 +28,12 @@ func Email(params *config.Params, subject string, message string, isError bool) 
 		to = params.Notify.Email.Info.To
 	}
 
-	auth := smtp.PlainAuth("", username, password, smtpHost)
+	auth := smtp.CRAMMD5Auth(username, password)
 
 	msg := []byte("From: " + from + "\r\n" +
 		"To: " + to + "\r\n" +
 		"Subject: [" + params.Fqdn + "] " + subject + "\r\n\r\n" +
 		message + "\r\n")
 
-	_ = smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, msg)
+	return smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, msg)
 }

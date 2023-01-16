@@ -333,7 +333,10 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 	}
 
 	if !backupStatus.minio.enabled && !backupStatus.s3.enabled {
-		notify.Email(d.p, "Yedekleme başarılı", db + " veritabanı " + tfp + " konumuna yedeklendi.", false)
+		err = notify.Email(d.p, "Yedekleme başarılı", db + " veritabanı " + tfp + " konumuna yedeklendi.", false)
+		if err != nil {
+			d.l.Error("Mail gönderilemedi: " + err.Error())
+		}
 		return
 	}
 
@@ -358,11 +361,11 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 		body += " " + backupStatus.s3.msg
 	}
 
-	if (backupStatus.minio.enabled) {
-		notify.Email(d.p, subject, body, backupStatus.minio.success)
-	}
-	if (backupStatus.s3.enabled) {
-		notify.Email(d.p, subject, body, backupStatus.s3.success)
+	if backupStatus.minio.enabled || backupStatus.s3.enabled {
+		err = notify.Email(d.p, subject, body, false)
+		if err != nil {
+			d.l.Error("Mail gönderilemedi: " + err.Error())
+		}
 	}
 
 	if d.p.RemoveLocal {
