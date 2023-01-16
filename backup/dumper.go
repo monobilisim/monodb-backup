@@ -191,6 +191,7 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 		)
 
 		backupStatus.s3.enabled = true
+
 		uploader, err := newS3Uploader(d.p.S3.Region, d.p.S3.AccessKey, d.p.S3.SecretKey)
 		if err != nil {
 			d.l.ErrorWithFields(map[string]interface{}{
@@ -263,6 +264,8 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 		},
 			"Veritabanı yedeği MinIO'ya yükleniyor...",
 		)
+
+		backupStatus.minio.enabled = true
 
 		minioClient, err := newMinioClient(
 			d.p.Minio.Endpoint,
@@ -355,8 +358,11 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 		body += " " + backupStatus.s3.msg
 	}
 
-	if (backupStatus.minio.enabled && !backupStatus.minio.success) || (backupStatus.s3.enabled && !backupStatus.s3.success) {
-		notify.Email(d.p, subject, body, true)
+	if (backupStatus.minio.enabled) {
+		notify.Email(d.p, subject, body, backupStatus.minio.success)
+	}
+	if (backupStatus.s3.enabled) {
+		notify.Email(d.p, subject, body, backupStatus.s3.success)
 	}
 
 	if d.p.RemoveLocal {

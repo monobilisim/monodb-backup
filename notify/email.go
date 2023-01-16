@@ -16,17 +16,19 @@ func Email(params *config.Params, subject string, message string, isError bool) 
 		smtpHost = params.Notify.Email.Error.SmtpHost
 		smtpPort = params.Notify.Email.Error.SmtpPort
 		from = params.Notify.Email.Error.From
+		username = params.Notify.Email.Error.Username
 		password = params.Notify.Email.Error.Password
 		to = params.Notify.Email.Error.To
 	} else {
 		smtpHost = params.Notify.Email.Info.SmtpHost
 		smtpPort = params.Notify.Email.Info.SmtpPort
 		from = params.Notify.Email.Info.From
+		username = params.Notify.Email.Info.Username
 		password = params.Notify.Email.Info.Password
 		to = params.Notify.Email.Info.To
 	}
 
-	auth := smtp.PlainAuth("", from, password, smtpHost)
+	auth := smtp.PlainAuth("", username, password, smtpHost)
 
 	msg := []byte("From: " + from + "\r\n" +
 		"To: " + to + "\r\n" +
