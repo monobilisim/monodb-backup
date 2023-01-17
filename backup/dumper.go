@@ -350,6 +350,11 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 			subject += ", MinIO'ya yükleme başarısız"
 		}
 		body += " " + backupStatus.minio.msg
+
+		err = notify.Email(d.p, subject, body, backupStatus.minio.success)
+		if err != nil {
+			d.l.Error("Mail gönderilemedi: " + err.Error())
+		}
 	}
 
 	if backupStatus.s3.enabled {
@@ -359,10 +364,8 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 			subject += ", S3'e yükleme başarısız"
 		}
 		body += " " + backupStatus.s3.msg
-	}
 
-	if backupStatus.minio.enabled || backupStatus.s3.enabled {
-		err = notify.Email(d.p, subject, body, false)
+		err = notify.Email(d.p, subject, body, backupStatus.s3.success)
 		if err != nil {
 			d.l.Error("Mail gönderilemedi: " + err.Error())
 		}

@@ -25,12 +25,14 @@ notify:
     info:
       smtpHost: smtp.gmail.com
       smtpPort: 587
+      username: sender@example.com
       from: sender@example.com
       password: 123456
       to: recipient@example.com
     error:
       smtpHost: smtp.gmail.com
       smtpPort: 587
+      username: sender@example.com
       from: sender@example.com
       password: 123456
       to: recipient@example.com
