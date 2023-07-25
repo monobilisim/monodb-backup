@@ -75,7 +75,7 @@ func (m *Mattermost) Notify(message string, pretext string, text string, isError
 	}
 	body := bytes.NewReader(payloadBytes)
 
-	req, err := http.NewRequest("POST", url + "/api/v4/posts", body)
+	req, err := http.NewRequest("POST", url+"/api/v4/posts", body)
 	if err != nil {
 		log.Printf("Error creating POST request for Mattermost: %q", err.Error())
 		return

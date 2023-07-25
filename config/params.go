@@ -2,10 +2,11 @@ package config
 
 import (
 	"flag"
-	"github.com/spf13/viper"
 	log2 "log"
 	"os"
 	"pgsql-backup/log"
+
+	"github.com/spf13/viper"
 )
 
 type Params struct {
@@ -13,15 +14,15 @@ type Params struct {
 	Databases         []string
 	RemoveLocal       bool
 	Notify            struct {
-		Email       struct {
-			Enabled  bool
-			Info EmailConfig
-			Error EmailConfig
+		Email struct {
+			Enabled bool
+			Info    EmailConfig
+			Error   EmailConfig
 		}
 		Mattermost struct {
-			Enabled   bool
-			Info MattermostConfig
-			Error MattermostConfig
+			Enabled bool
+			Info    MattermostConfig
+			Error   MattermostConfig
 		}
 	}
 	S3 struct {

@@ -3,11 +3,12 @@ package backup
 import (
 	"context"
 	"crypto/tls"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 type MinioClient struct {
@@ -16,7 +17,8 @@ type MinioClient struct {
 	AccessKey          string
 	SecretKey          string
 	Secure             bool
-	InsecureSkipVerify bool}
+	InsecureSkipVerify bool
+}
 
 func newMinioClient(endpoint, accessKey, secretKey string, secure, insecureSkipVerify bool) (*MinioClient, error) {
 	minioOptions := &minio.Options{

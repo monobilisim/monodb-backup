@@ -1,18 +1,19 @@
 package log
 
 import (
-	"github.com/sirupsen/logrus"
-	"github.com/snowzach/rotatefilehook"
 	"os"
 	"time"
+
+	"github.com/sirupsen/logrus"
+	"github.com/snowzach/rotatefilehook"
 )
 
 type Params struct {
-	Level string
-	File  string
-	MaxSize int
+	Level      string
+	File       string
+	MaxSize    int
 	MaxBackups int
-	MaxAge int
+	MaxAge     int
 }
 
 type Logger struct {
@@ -33,9 +34,9 @@ func NewLogger(params *Params) (l *Logger) {
 
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp:             true,
-		DisableLevelTruncation:    true,
-		PadLevelText:              true,
+		FullTimestamp:          true,
+		DisableLevelTruncation: true,
+		PadLevelText:           true,
 	})
 
 	l = &Logger{
@@ -107,6 +108,6 @@ func (l *Logger) PanicWithFields(fields map[string]interface{}, args ...interfac
 	l.Logger.WithFields(fields).Panic(args)
 }
 
-func Fatal(args ...interface{})  {
+func Fatal(args ...interface{}) {
 	logrus.Fatal(args)
 }

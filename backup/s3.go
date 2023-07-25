@@ -1,18 +1,19 @@
 package backup
 
 import (
+	"os"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"os"
 )
 
-func newS3Uploader(region, accessKey, secretKey string) (*s3manager.Uploader, error)  {
+func newS3Uploader(region, accessKey, secretKey string) (*s3manager.Uploader, error) {
 	sess, err := session.NewSessionWithOptions(session.Options{
 		Profile: "default",
 		Config: aws.Config{
-			Region: aws.String(region),
+			Region:      aws.String(region),
 			Credentials: credentials.NewStaticCredentials(accessKey, secretKey, ""),
 		},
 	})
