@@ -15,11 +15,13 @@ Yapılandırma dosyasını düzenleyerek pgsql-backup'ı yapılandırın (Konum 
 
 ## Yedeklemeyi çalıştırın:
 
+postgres kullanıcısı ile:
+
 ```
 pgsql-backup
 ```
 
-Yapılandırmaya bağlı olarak her veritabanı için yedekler oluşturulacaktır.
+Yapılandırmaya bağlı olarak her veritabanı için yedekler oluşturulacaktır. Yerel yedekler için bir yedekleme klasörü tanımlanmalıdır, ve klasör için gerekli yetkilerin verilmesi gerekmektedir. 
 
 # Yapılandırma
 
