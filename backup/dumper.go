@@ -54,7 +54,7 @@ func (d *Dumper) getDBList() []string {
 	for _, line := range bytes.Split(out, []byte{'\n'}) {
 		if len(line) > 0 {
 			ln := strings.TrimSpace(strings.Split(string(line), "|")[0])
-			if ln == "" || ln[0] < 'a' || ln[0] > 'z' {
+			if ln == "" || ln[0] < 'a' || ln[0] > 'z' || ln == "template0" || ln == "template1" || ln == "postgres" {
 				continue
 			}
 			dbList = append(dbList, ln)
