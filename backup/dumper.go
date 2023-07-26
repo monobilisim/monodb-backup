@@ -43,7 +43,7 @@ func (d *Dumper) reportLog(message string, boolean bool) {
 
 // getDBList returns list of databases to backup from psql
 func (d *Dumper) getDBList() []string {
-	cmd := exec.Command("sudo", "-u", "postgres", "/usr/bin/psql", "-lqt")
+	cmd := exec.Command("/usr/bin/psql", "-lqt")
 	out, err := cmd.Output()
 	if err != nil {
 		d.reportLog("Veritabanı listesi alınamadı: "+err.Error(), true)
@@ -53,13 +53,10 @@ func (d *Dumper) getDBList() []string {
 	var dbList []string
 	for _, line := range bytes.Split(out, []byte{'\n'}) {
 		if len(line) > 0 {
-			// trim leading and trailing spaces
 			ln := strings.TrimSpace(strings.Split(string(line), "|")[0])
-			// if first character is not a letter, it's not a database
 			if ln == "" || ln[0] < 'a' || ln[0] > 'z' {
 				continue
 			}
-			d.l.Info(ln)
 			dbList = append(dbList, ln)
 		}
 	}
