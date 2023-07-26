@@ -1,5 +1,5 @@
 backupDestination: /var/backups
-databases:
+databases: # Eğer boş bırakılırsa tüm veritabanları yedeklenir (if databases is empty, all databases will be backed up)
   - db1
   - db2
 removeLocal: true
