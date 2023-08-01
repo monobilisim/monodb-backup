@@ -66,10 +66,10 @@ Yapılandırma dosyası YAML biçimindedir. Mevcut seçenekler şunlardır:
 
 ## Derleme
 
-pgsql-backup oluşturmak için:
+pgsql-backup derlemek için:
 
 ```
-go build cmd/pgsql-backup.go
+CGO_ENABLED=0 go build -ldflags '-extldflags "-static"'
 ```
 
 ---

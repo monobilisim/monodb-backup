@@ -69,7 +69,7 @@ See `config/config.sample.yml` for an example configuration file.
 To build pgsql-backup:
 
 ```
-go build cmd/pgsql-backup.go
+CGO_ENABLED=0 go build -ldflags '-extldflags "-static"'
 ```
 
 ---
