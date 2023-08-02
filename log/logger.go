@@ -2,6 +2,9 @@ package log
 
 import (
 	"os"
+	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -34,10 +37,16 @@ func NewLogger(params *Params) (l *Logger) {
 
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp:          true,
-		DisableLevelTruncation: true,
-		PadLevelText:           true,
+		ForceColors:     true,
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+			slash := strings.LastIndex(f.File, "/")
+			filename := f.File[slash+1:]
+			return "", "[" + filename + ":" + strconv.Itoa(f.Line) + "]"
+		},
 	})
+	logger.SetReportCaller(true)
 
 	l = &Logger{
 		Params: params,

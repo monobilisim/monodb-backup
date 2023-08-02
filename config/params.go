@@ -2,7 +2,6 @@ package config
 
 import (
 	"flag"
-	log2 "log"
 	"os"
 	"pgsql-backup/log"
 
@@ -67,19 +66,19 @@ func NewParams() (p *Params) {
 	flag.Parse()
 
 	if _, err := os.Stat(*filePath); os.IsNotExist(err) {
-		log2.Fatalf("Configuration file: %s does not exist, %v\n", *filePath, err)
+		log.Fatal("Configuration file: %s does not exist, %v\n", *filePath, err)
 	}
 
 	viper.SetConfigFile(*filePath)
 	viper.SetConfigType("yaml")
 
 	if err := viper.ReadInConfig(); err != nil {
-		log2.Fatalf("Error reading config file, %s", err)
+		log.Fatal("Error reading config file, %s\n", err)
 	}
 
 	err := viper.Unmarshal(&p)
 	if err != nil {
-		log2.Fatalf("Unable to decode into struct, %v\n", err)
+		log.Fatal("Unable to decode into struct, %v\n", err)
 	}
 
 	p.Fqdn, _ = os.Hostname()
