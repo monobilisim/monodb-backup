@@ -1,4 +1,7 @@
-# pgsql-backup
+<div style="text-align: center;">
+<h1>pgsql-backup</h1>
+
+<img src="https://monobilisim.com.tr/images/mono-bilisim.svg" width="240"/>
 
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
@@ -10,18 +13,18 @@
 [![Readme in Turkish](https://img.shields.io/badge/Readme-Turkish-red)](README.tr.md)
 
 **pgsql-backup** is a tool for backing up PostgreSQL databases.
+</div>
 
 ---
 
 ## Table of Contents
 
-- [pgsql-backup](#pgsql-backup)
-  - [Table of Contents](#table-of-contents)
-  - [Features](#features)
-  - [Usage](#usage)
-  - [Configuration](#configuration)
-  - [Building](#building)
-  - [License](#license)
+- [Table of Contents](#table-of-contents)
+- [Features](#features)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Building](#building)
+- [License](#license)
 
 ---
 
