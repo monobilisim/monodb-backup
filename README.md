@@ -32,7 +32,7 @@
 
 ## Features
 
-- Backs up all databases or a custom list of databases.
+- Backs up and encrypts all databases or a custom list of databases.
 - Supports local backups and cloud storage options like S3 or Minio.
 - Option to remove old local backups for efficient storage management.
 - Provides notifications through email or Mattermost for monitoring backups.

@@ -32,7 +32,7 @@
 
 ## Özellikler
 
-- Tüm veritabanlarını veya özel bir veritabanı listesini yedekler.
+- Tüm veritabanlarını veya özel bir veritabanı listesini yedekler ve şifreler.
 - Yerel yedeklemeleri ve S3 veya Minio gibi bulut depolama seçeneklerini destekler.
 - Verimli depolama yönetimi için eski yerel yedekleri kaldırma seçeneği.
 - Yedeklemeleri izlemek için e-posta veya Mattermost aracılığıyla bildirimler sağlar.
