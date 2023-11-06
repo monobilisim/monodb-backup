@@ -12,6 +12,7 @@ type Params struct {
 	BackupDestination string
 	Databases         []string
 	RemoveLocal       bool
+	ArchivePass       string
 	Notify            struct {
 		Email struct {
 			Enabled bool

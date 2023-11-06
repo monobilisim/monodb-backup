@@ -23,6 +23,7 @@
 - [İçindekiler](#i̇çindekiler)
 - [Özellikler](#özellikler)
 - [Kullanım](#kullanım)
+- [Gereksinimler](#gereksinimler)
 - [Yapılandırma](#yapılandırma)
 - [Derleme](#derleme)
 - [Lisans](#lisans)
@@ -52,6 +53,12 @@ Yapılandırmaya bağlı olarak her veritabanı için yedekler oluşturulacaktı
 
 ---
 
+## Gereksinimler
+
+- p7zip
+
+---
+
 ## Yapılandırma
 
 Yapılandırma dosyası YAML biçimindedir. Mevcut seçenekler şunlardır:
@@ -59,6 +66,7 @@ Yapılandırma dosyası YAML biçimindedir. Mevcut seçenekler şunlardır:
 - `backupDestination` - Yerel yedekleme klasörü yolu
 - `databases` - Yedeklenecek veritabanı adlarının listesi, eğer boş bırakılırsa tüm veritabanları yedeklenir.
 - `removeLocal` - true ise eski yerel yedekleri kaldırır
+- `archivePass` - Yedekleri 7z ile şifrelerken kullanılacak parola.
 - `s3` - Yedeklemeler için S3 yapılandırması
 - `minio` - Yedeklemeler için Minio yapılandırması
 - `notify` - E-posta ve Mattermost bildirim yapılandırması

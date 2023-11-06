@@ -3,6 +3,7 @@ databases: # Eğer boş bırakılırsa tüm veritabanları yedeklenir (if databa
   - db1
   - db2
 removeLocal: true
+archivePass: "encryptionPassword"
 s3:
   enabled: true
   region: aws region

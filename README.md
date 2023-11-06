@@ -23,6 +23,7 @@
 - [Table of Contents](#table-of-contents)
 - [Features](#features)
 - [Usage](#usage)
+- [Dependencies](#dependencies)
 - [Configuration](#configuration)
 - [Building](#building)
 - [License](#license)
@@ -52,6 +53,12 @@ Backups will be created for each database based on the configuration. For local 
 
 ---
 
+## Dependencies
+
+- p7zip
+
+---
+
 ## Configuration
 
 The configuration file is in YAML format. The available options are:
@@ -59,6 +66,7 @@ The configuration file is in YAML format. The available options are:
 - `backupDestination` - Local backup folder path
 - `databases` - List of database names to back up, if empty all databases are backed up
 - `removeLocal` - Remove old local backups if true
+- `archivePass` - Password to use for encrypting backups with 7z
 - `s3` - S3 configuration for backups
 - `minio` - Minio configuration for backups
 - `notify` - Email and Mattermost notification configuration

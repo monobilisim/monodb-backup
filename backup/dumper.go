@@ -94,7 +94,7 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 		now:   time.Now().Format("2006-01-02-150405"),
 	}
 	_ = os.MkdirAll(dst+"/"+date.year+"/"+date.month, os.ModePerm)
-	tfp := dst + "/" + date.year + "/" + date.month + "/" + db + "--" + date.now + ".tar.gz"
+	tfp := dst + "/" + date.year + "/" + date.month + "/" + db + "--" + date.now + ".tar.7z"
 
 	logInfo := map[string]interface{}{
 		"db":                       db,
@@ -158,8 +158,44 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 		return
 	}
 
-	cmd = exec.Command("/bin/tar", "zcf", tfp, dfp)
-	err = cmd.Run()
+	cmd = exec.Command("tar", "cf", "-", dfp)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		logInfo["error"] = err.Error()
+
+		d.l.ErrorWithFields(logInfo, "Dump file could not be archived.")
+
+		d.m.Notify(
+			"An error occurred while backing up the "+db+" database.",
+			"Dump file "+dfp+" could not be archived to the "+tfp+" target.",
+			err.Error(),
+			true,
+		)
+		notify.Email(d.p, "Backup error", "An error occurred while backing up the "+db+" database. Dump file "+dfp+" could not be archived to the "+tfp+" target: "+err.Error(), true)
+		return
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		logInfo["error"] = err.Error()
+
+		d.l.ErrorWithFields(logInfo, "Dump file could not be archived.")
+
+		d.m.Notify(
+			"An error occurred while backing up the "+db+" database.",
+			"Dump file "+dfp+" could not be archived to the "+tfp+" target.",
+			err.Error(),
+			true,
+		)
+		notify.Email(d.p, "Backup error", "An error occurred while backing up the "+db+" database. Dump file "+dfp+" could not be archived to the "+tfp+" target: "+err.Error(), true)
+		return
+	}
+
+	cmd2 := exec.Command("7z", "a", "-t7z", "-ms=on", "-mhe=on", "-p"+d.p.ArchivePass, "-si", tfp)
+	cmd2.Stdin = stdout
+
+	err = cmd2.Run()
 	if err != nil {
 		logInfo["error"] = err.Error()
 
@@ -242,7 +278,7 @@ func (d *Dumper) uploadToS3(db, dfp, tfp string, backupStatus *backupStatus, dat
 
 		return
 	} else {
-		target := date.year + "/" + date.month + "/" + db + "--" + date.now + ".tar.gz"
+		target := date.year + "/" + date.month + "/" + db + "--" + date.now + ".tar.7z"
 		if d.p.S3.Path != "" {
 			target = d.p.S3.Path + "/" + target
 		}
@@ -314,7 +350,7 @@ func (d *Dumper) uploadToMinio(db, dfp, tfp string, backupStatus *backupStatus, 
 
 		backupStatus.minio.msg = "Connection could not be established to upload the " + db + " database backup to MinIO: " + err.Error()
 	} else {
-		target := date.year + "/" + date.month + "/" + db + "--" + date.now + ".tar.gz"
+		target := date.year + "/" + date.month + "/" + db + "--" + date.now + ".tar.7z"
 		if d.p.Minio.Path != "" {
 			target = d.p.Minio.Path + "/" + target
 		}
