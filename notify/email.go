@@ -10,6 +10,10 @@ func Email(params *config.Params, subject string, message string, isError bool) 
 		return nil
 	}
 
+	if params.Notify.Email.OnlyOnError && !isError {
+		return nil
+	}
+
 	var smtpHost, smtpPort, from, username, password, to string
 
 	if isError {

@@ -15,9 +15,10 @@ type Params struct {
 	ArchivePass       string
 	Notify            struct {
 		Email struct {
-			Enabled bool
-			Info    EmailConfig
-			Error   EmailConfig
+			Enabled     bool
+			OnlyOnError bool
+			Info        EmailConfig
+			Error       EmailConfig
 		}
 		Mattermost struct {
 			Enabled bool

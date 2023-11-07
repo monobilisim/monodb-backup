@@ -387,7 +387,7 @@ func (d *Dumper) uploadToMinio(db, dfp, tfp string, backupStatus *backupStatus, 
 	}
 	body += " " + backupStatus.minio.msg
 
-	err = notify.Email(d.p, subject, body, backupStatus.minio.success)
+	err = notify.Email(d.p, subject, body, !backupStatus.minio.success)
 	if err != nil {
 
 		d.l.Error("Mail could not be sent: " + err.Error())

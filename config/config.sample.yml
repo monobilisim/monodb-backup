@@ -23,6 +23,7 @@ minio:
 notify:
   email:
     enabled: true
+    onlyOnError: false
     info:
       smtpHost: smtp.gmail.com
       smtpPort: 587
