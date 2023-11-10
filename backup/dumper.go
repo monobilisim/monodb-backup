@@ -312,7 +312,7 @@ func (d *Dumper) uploadToS3(db, dfp, tfp string, backupStatus *backupStatus, dat
 	}
 	body += " " + backupStatus.s3.msg
 
-	err = notify.Email(d.p, subject, body, backupStatus.s3.success)
+	err = notify.Email(d.p, subject, body, !backupStatus.s3.success)
 	if err != nil {
 
 		d.l.Error("Mail could not be sent: " + err.Error())
