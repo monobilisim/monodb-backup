@@ -158,7 +158,7 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 		return
 	}
 
-	cmd = exec.Command("tar", "cf", "-", dfp)
+	cmd = exec.Command("tar", "cf", "-", dfp, "--remove-files")
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
