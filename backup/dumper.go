@@ -10,9 +10,10 @@ import (
 	"time"
 )
 
+var hostname, _ = os.Hostname()
+
 type Dumper struct {
 	p *config.Params
-	m *notify.Mattermost
 	l Logger
 }
 
@@ -37,7 +38,6 @@ type rightNow struct {
 func NewDumper(params *config.Params, logger Logger) (d *Dumper) {
 	d = &Dumper{
 		p: params,
-		m: notify.NewMattermost(params),
 		l: logger,
 	}
 	return
@@ -45,15 +45,17 @@ func NewDumper(params *config.Params, logger Logger) (d *Dumper) {
 
 func (d *Dumper) reportLog(message string, boolean bool) {
 	d.l.Info(message)
-	d.m.Notify(message, "", "", boolean)
+	if boolean {
+		notify.SendAlarm(d.p.Notify.Webhook, "[ERROR] pgsql-backup at "+hostname+"\n"+message)
+	}
 }
 
-func (d *Dumper) getDBList() []string {
+func (d *Dumper) getDBList() ([]string, error) {
 	cmd := exec.Command("/usr/bin/psql", "-lqt")
 	out, err := cmd.Output()
 	if err != nil {
 		d.reportLog("Could not get database list: "+err.Error(), true)
-		return nil
+		return nil, err
 	}
 
 	var dbList []string
@@ -66,17 +68,19 @@ func (d *Dumper) getDBList() []string {
 			dbList = append(dbList, ln)
 		}
 	}
-	return dbList
+	return dbList, nil
 }
 
 func (d *Dumper) Dump() {
-
 	d.reportLog("PostgreSQL database backup started.", false)
 
 	if len(d.p.Databases) == 0 {
-
 		d.reportLog("Getting database list...", false)
-		d.p.Databases = d.getDBList()
+		databases, err := d.getDBList()
+		if err != nil {
+			d.reportLog(err.Error(), true)
+		}
+		d.p.Databases = databases
 	}
 
 	for _, db := range d.p.Databases {
@@ -87,6 +91,7 @@ func (d *Dumper) Dump() {
 }
 
 func (d *Dumper) dumpSingleDb(db string, dst string) {
+	encrypted := (d.p.ArchivePass != "")
 	dfp := dst + "/" + db + ".sql"
 	date := rightNow{
 		year:  time.Now().Format("2006"),
@@ -94,7 +99,13 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 		now:   time.Now().Format("2006-01-02-150405"),
 	}
 	_ = os.MkdirAll(dst+"/"+date.year+"/"+date.month, os.ModePerm)
-	tfp := dst + "/" + date.year + "/" + date.month + "/" + db + "--" + date.now + ".tar.7z"
+	var name string
+	if encrypted {
+		name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".7z"
+	} else {
+		name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".tar.gz"
+	}
+	tfp := dst + "/" + name
 
 	logInfo := map[string]interface{}{
 		"db":                       db,
@@ -111,12 +122,7 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 
 		d.l.ErrorWithFields(logInfo, "Output file could not be created.")
 
-		d.m.Notify(
-			"An error occurred while backing up the "+db+" database.",
-			"Output file could not be created:",
-			err.Error(),
-			true,
-		)
+		notify.SendAlarm(d.p.Notify.Webhook, "[ERROR] pgsql-backup at "+hostname+"\n"+"An error occurred while backing up the "+db+" database.\nOutput file could not be created:\n"+err.Error())
 		return
 	}
 
@@ -133,12 +139,7 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 
 		d.l.ErrorWithFields(logInfo, "Dump could not be taken.")
 
-		d.m.Notify(
-			"An error occurred while backing up the "+db+" database.",
-			"Dump could not be taken to the "+dfp+" file:",
-			err.Error(),
-			true,
-		)
+		notify.SendAlarm(d.p.Notify.Webhook, "[ERROR] pgsql-backup at "+hostname+"\n"+"An error occurred while backing up the "+db+" database.\nDump could not be taken to the "+dfp+" file:\n"+err.Error())
 		notify.Email(d.p, "Backup error", "An error occurred while backing up the "+db+" database. Dump could not be taken to the "+dfp+" file: "+err.Error(), true)
 		return
 	}
@@ -148,72 +149,38 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 
 		d.l.ErrorWithFields(logInfo, "Dump could not be taken.")
 
-		d.m.Notify(
-			"An error occurred while backing up the "+db+" database.",
-			"Dump could not be taken to the "+dfp+" file:",
-			err.Error(),
-			true,
-		)
+		notify.SendAlarm(d.p.Notify.Webhook, "[ERROR] pgsql-backup at "+hostname+"\n"+"An error occurred while backing up the "+db+" database.\nDump could not be taken to the "+dfp+" file:\n"+err.Error())
 		notify.Email(d.p, "Backup error", "An error occurred while backing up the "+db+" database. Dump could not be taken to the "+dfp+" file: "+err.Error(), true)
 		return
 	}
 
-	cmd = exec.Command("tar", "cf", "-", dfp, "--remove-files")
+	if !encrypted {
+		cmd = exec.Command("/bin/tar", "zcf", tfp, "-C", dst, db+".sql")
+		err = cmd.Run()
+		if err != nil {
+			logInfo["error"] = err.Error()
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		logInfo["error"] = err.Error()
+			d.l.ErrorWithFields(logInfo, "Dump file could not be archived.")
 
-		d.l.ErrorWithFields(logInfo, "Dump file could not be archived.")
+			notify.SendAlarm(d.p.Notify.Webhook, "[ERROR] pgsql-backup at "+hostname+"\n"+"An error occurred while backing up the "+db+" database.\nDump file "+dfp+" could not be archived to the "+tfp+" target.\n"+err.Error())
+			notify.Email(d.p, "Backup error", "An error occurred while backing up the "+db+" database. Dump file "+dfp+" could not be archived to the "+tfp+" target: "+err.Error(), true)
+			return
+		}
+	} else {
+		cmd2 := exec.Command("7z", "a", "-t7z", "-ms=on", "-mhe=on", "-p"+d.p.ArchivePass, tfp, dfp)
+		err = cmd2.Run()
+		if err != nil {
+			logInfo["error"] = err.Error()
 
-		d.m.Notify(
-			"An error occurred while backing up the "+db+" database.",
-			"Dump file "+dfp+" could not be archived to the "+tfp+" target.",
-			err.Error(),
-			true,
-		)
-		notify.Email(d.p, "Backup error", "An error occurred while backing up the "+db+" database. Dump file "+dfp+" could not be archived to the "+tfp+" target: "+err.Error(), true)
-		return
-	}
+			d.l.ErrorWithFields(logInfo, "Dump file could not be archived.")
 
-	err = cmd.Start()
-	if err != nil {
-		logInfo["error"] = err.Error()
-
-		d.l.ErrorWithFields(logInfo, "Dump file could not be archived.")
-
-		d.m.Notify(
-			"An error occurred while backing up the "+db+" database.",
-			"Dump file "+dfp+" could not be archived to the "+tfp+" target.",
-			err.Error(),
-			true,
-		)
-		notify.Email(d.p, "Backup error", "An error occurred while backing up the "+db+" database. Dump file "+dfp+" could not be archived to the "+tfp+" target: "+err.Error(), true)
-		return
-	}
-
-	cmd2 := exec.Command("7z", "a", "-t7z", "-ms=on", "-mhe=on", "-p"+d.p.ArchivePass, "-si", tfp)
-	cmd2.Stdin = stdout
-
-	err = cmd2.Run()
-	if err != nil {
-		logInfo["error"] = err.Error()
-
-		d.l.ErrorWithFields(logInfo, "Dump file could not be archived.")
-
-		d.m.Notify(
-			"An error occurred while backing up the "+db+" database.",
-			"Dump file "+dfp+" could not be archived to the "+tfp+" target.",
-			err.Error(),
-			true,
-		)
-		notify.Email(d.p, "Backup error", "An error occurred while backing up the "+db+" database. Dump file "+dfp+" could not be archived to the "+tfp+" target: "+err.Error(), true)
-		return
+			notify.SendAlarm(d.p.Notify.Webhook, "[ERROR] pgsql-backup at "+hostname+"\n"+"An error occurred while backing up the "+db+" database.\nDump file "+dfp+" could not be archived to the "+tfp+" target.\n"+err.Error())
+			notify.Email(d.p, "Backup error", "An error occurred while backing up the "+db+" database. Dump file "+dfp+" could not be archived to the "+tfp+" target: "+err.Error(), true)
+			return
+		}
 	}
 
 	d.l.InfoWithFields(logInfo, "Database backed up.")
-
-	d.m.Notify("The "+db+" database was backed up to the "+tfp+" location.", "", "", false)
 
 	backupStatus := backupStatus{
 		s3: uploadStatus{
@@ -229,11 +196,11 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 	}
 
 	if d.p.S3.Enabled {
-		d.uploadToS3(db, dfp, tfp, &backupStatus, date)
+		d.uploadToS3(db, dfp, name, tfp, &backupStatus, date)
 	}
 
 	if d.p.Minio.Enabled {
-		d.uploadToMinio(db, dfp, tfp, &backupStatus, date)
+		d.uploadToMinio(db, dfp, name, tfp, &backupStatus, date)
 	}
 
 	if !backupStatus.minio.enabled && !backupStatus.s3.enabled {
@@ -245,13 +212,13 @@ func (d *Dumper) dumpSingleDb(db string, dst string) {
 		}
 		return
 	}
-
 	if d.p.RemoveLocal {
 		_ = os.Remove(tfp)
 	}
+
 }
 
-func (d *Dumper) uploadToS3(db, dfp, tfp string, backupStatus *backupStatus, date rightNow) {
+func (d *Dumper) uploadToS3(db, dfp, name, tfp string, backupStatus *backupStatus, date rightNow) {
 
 	logInfoS3 := map[string]interface{}{
 		"db":                       db,
@@ -271,14 +238,14 @@ func (d *Dumper) uploadToS3(db, dfp, tfp string, backupStatus *backupStatus, dat
 
 		d.l.ErrorWithFields(logInfoS3, "Database backup could not be uploaded to S3.")
 
-		d.m.Notify("Connection could not be established to upload the "+db+" database backup to S3.", "", err.Error(), true)
+		notify.SendAlarm(d.p.Notify.Webhook, "[ERROR] pgsql-backup at "+hostname+"\n"+"Connection could not be established to upload the "+db+" database backup to S3.\n"+err.Error())
 		backupStatus.s3.success = false
 
 		backupStatus.s3.msg = "Connection could not be established to upload the " + db + " database backup to S3: " + err.Error()
 
 		return
 	} else {
-		target := date.year + "/" + date.month + "/" + db + "--" + date.now + ".tar.7z"
+		target := name
 		if d.p.S3.Path != "" {
 			target = d.p.S3.Path + "/" + target
 		}
@@ -289,7 +256,7 @@ func (d *Dumper) uploadToS3(db, dfp, tfp string, backupStatus *backupStatus, dat
 
 			d.l.ErrorWithFields(logInfoS3, "Database backup could not be uploaded to S3.")
 
-			d.m.Notify("The "+db+" database backup could not be uploaded to S3.", "", err.Error(), true)
+			notify.SendAlarm(d.p.Notify.Webhook, "[ERROR] pgsql-backup at "+hostname+"\n"+"The "+db+" database backup could not be uploaded to S3.\n"+err.Error())
 			backupStatus.s3.success = false
 
 			backupStatus.s3.msg = "The " + db + " database backup could not be uploaded to S3: " + err.Error()
@@ -319,7 +286,7 @@ func (d *Dumper) uploadToS3(db, dfp, tfp string, backupStatus *backupStatus, dat
 	}
 }
 
-func (d *Dumper) uploadToMinio(db, dfp, tfp string, backupStatus *backupStatus, date rightNow) {
+func (d *Dumper) uploadToMinio(db, dfp, name, tfp string, backupStatus *backupStatus, date rightNow) {
 
 	logInfoMinio := map[string]interface{}{
 		"db":                       db,
@@ -345,12 +312,12 @@ func (d *Dumper) uploadToMinio(db, dfp, tfp string, backupStatus *backupStatus, 
 
 		d.l.ErrorWithFields(logInfoMinio, "Database backup could not be uploaded to MinIO.")
 
-		d.m.Notify("Connection could not be established to upload the "+db+" database backup to MinIO.", "", err.Error(), true)
+		notify.SendAlarm(d.p.Notify.Webhook, "[ERROR] pgsql-backup at "+hostname+"\n"+"Connection could not be established to upload the "+db+" database backup to MinIO..\n"+err.Error())
 		backupStatus.minio.success = false
 
 		backupStatus.minio.msg = "Connection could not be established to upload the " + db + " database backup to MinIO: " + err.Error()
 	} else {
-		target := date.year + "/" + date.month + "/" + db + "--" + date.now + ".tar.7z"
+		target := name
 		if d.p.Minio.Path != "" {
 			target = d.p.Minio.Path + "/" + target
 		}
@@ -361,7 +328,7 @@ func (d *Dumper) uploadToMinio(db, dfp, tfp string, backupStatus *backupStatus, 
 
 			d.l.ErrorWithFields(logInfoMinio, "Database backup could not be uploaded to MinIO.")
 
-			d.m.Notify("The "+db+" database backup could not be uploaded to MinIO", "", err.Error(), true)
+			notify.SendAlarm(d.p.Notify.Webhook, "[ERROR] pgsql-backup at "+hostname+"\n"+"The "+db+" database backup could not be uploaded to MinIO\n"+err.Error())
 			backupStatus.minio.success = false
 
 			backupStatus.minio.msg = db + " database backup could not be uploaded to MinIO: " + err.Error()
@@ -369,7 +336,6 @@ func (d *Dumper) uploadToMinio(db, dfp, tfp string, backupStatus *backupStatus, 
 
 			d.l.InfoWithFields(logInfoMinio, "Database backup uploaded to MinIO.")
 
-			d.m.Notify(db+" database was uploaded to MinIO.", "", "", false)
 			backupStatus.minio.success = true
 
 			backupStatus.minio.msg = db + " database backup uploaded to MinIO."

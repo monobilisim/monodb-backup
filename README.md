@@ -35,7 +35,7 @@
 - Backs up and encrypts all databases or a custom list of databases.
 - Supports local backups and cloud storage options like S3 or Minio.
 - Option to remove old local backups for efficient storage management.
-- Provides notifications through email or Mattermost for monitoring backups.
+- Provides notifications through email for monitoring backups.
 
 ---
 
@@ -69,7 +69,7 @@ The configuration file is in YAML format. The available options are:
 - `archivePass` - Password to use for encrypting backups with 7z
 - `s3` - S3 configuration for backups
 - `minio` - Minio configuration for backups
-- `notify` - Email and Mattermost notification configuration
+- `notify` - Email and webhook url notification configuration
 - `log` - Logging configuration
 
 See `config/config.sample.yml` for an example configuration file.

@@ -20,11 +20,7 @@ type Params struct {
 			Info        EmailConfig
 			Error       EmailConfig
 		}
-		Mattermost struct {
-			Enabled bool
-			Info    MattermostConfig
-			Error   MattermostConfig
-		}
+		Webhook string
 	}
 	S3 struct {
 		Enabled   bool
@@ -55,12 +51,6 @@ type EmailConfig struct {
 	Username string
 	Password string
 	To       string
-}
-
-type MattermostConfig struct {
-	Url       string
-	ChannelId string
-	ApiToken  string
 }
 
 func NewParams() (p *Params) {

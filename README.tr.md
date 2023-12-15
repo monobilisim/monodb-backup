@@ -35,7 +35,7 @@
 - Tüm veritabanlarını veya özel bir veritabanı listesini yedekler ve şifreler.
 - Yerel yedeklemeleri ve S3 veya Minio gibi bulut depolama seçeneklerini destekler.
 - Verimli depolama yönetimi için eski yerel yedekleri kaldırma seçeneği.
-- Yedeklemeleri izlemek için e-posta veya Mattermost aracılığıyla bildirimler sağlar.
+- Yedeklemeleri izlemek için e-posta aracılığıyla bildirimler sağlar.
 
 ---
 
@@ -69,7 +69,7 @@ Yapılandırma dosyası YAML biçimindedir. Mevcut seçenekler şunlardır:
 - `archivePass` - Yedekleri 7z ile şifrelerken kullanılacak parola.
 - `s3` - Yedeklemeler için S3 yapılandırması
 - `minio` - Yedeklemeler için Minio yapılandırması
-- `notify` - E-posta ve Mattermost bildirim yapılandırması
+- `notify` - E-posta ve webhook bildirim yapılandırması
 - `log` - log yapılandırması
 
 Örnek bir yapılandırma dosyası için `config/config.sample.yml` dosyasına bakın.
