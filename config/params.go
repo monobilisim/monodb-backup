@@ -11,6 +11,7 @@ import (
 type Params struct {
 	BackupDestination string
 	Databases         []string
+	Format            string // 7z, gz, default gz(pg_dump -Fc option - no further compression)
 	RemoveLocal       bool
 	ArchivePass       string
 	Notify            struct {
@@ -20,7 +21,7 @@ type Params struct {
 			Info        EmailConfig
 			Error       EmailConfig
 		}
-		Webhook string
+		Webhook Webhook
 	}
 	S3 struct {
 		Enabled   bool
@@ -42,6 +43,13 @@ type Params struct {
 	}
 	Log  *log.Params
 	Fqdn string
+}
+
+type Webhook struct {
+	Enabled     bool
+	OnlyOnError bool
+	Info        []string
+	Error       []string
 }
 
 type EmailConfig struct {

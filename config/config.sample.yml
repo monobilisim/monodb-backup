@@ -2,17 +2,18 @@ backupDestination: /var/backups
 databases: # Eğer boş bırakılırsa tüm veritabanları yedeklenir (if databases is empty, all databases will be backed up)
   - db1
   - db2
+format: gzip # gzip or 7zip. gzip if empty
 removeLocal: true
 archivePass: # Password for encrypting backups. No encryption if empty
 s3:
-  enabled: true
+  enabled: false
   region: aws region
   bucket: s3 bucket
   path: backup path
   accessKey: s3 access key
   secretKey: s3 secret key
 minio:
-  enabled: true
+  enabled: false
   endpoint: minio endpoint
   bucket: minio bucket
   path: backup path
@@ -22,7 +23,7 @@ minio:
   insecureSkipVerify: false
 notify:
   email:
-    enabled: true
+    enabled: false
     onlyOnError: false
     info:
       smtpHost: smtp.gmail.com
@@ -38,7 +39,15 @@ notify:
       from: sender@example.com
       password: 123456
       to: recipient@example.com
-  webhook: https://webhook_url.example.com
+  webhook:
+    enabled: false
+    onlyOnError: false
+    info:
+      - https://webhook_url.example1.com
+      - https://webhook_url.example2.com
+    error:
+      - https://webhook_url.example1.com
+      - https://webhook_url.example2.com
 
 log:
   enabled: true
