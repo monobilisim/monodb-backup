@@ -18,17 +18,6 @@ type Dumper struct {
 	l Logger
 }
 
-type backupStatus struct {
-	s3    uploadStatus
-	minio uploadStatus
-}
-
-type uploadStatus struct {
-	enabled bool
-	success bool
-	msg     string
-}
-
 type rightNow struct {
 	year  string
 	month string
@@ -52,10 +41,16 @@ func (d *Dumper) reportLog(message string, isError bool) {
 }
 
 func (d *Dumper) getDBList() ([]string, error) {
-	cmd := exec.Command("/usr/bin/psql", "-lqt")
+	psqlArgs := []string{"-lqt"}
+	if d.p.Remote.IsRemote {
+		pglink := "postgresql://" + d.p.Remote.User + ":" + d.p.Remote.Password + "@" + d.p.Remote.Host + ":" + d.p.Remote.Port
+		psqlArgs = append(psqlArgs, pglink)
+	}
+	cmd := exec.Command("/usr/bin/psql", psqlArgs...)
 	out, err := cmd.Output()
 	if err != nil {
-		d.reportLog("Could not get database list: "+err.Error(), true)
+		d.l.Error("Could not get database list: " + err.Error())
+		d.l.Error("Command output: " + string(out))
 		return nil, err
 	}
 
@@ -75,6 +70,12 @@ func (d *Dumper) getDBList() ([]string, error) {
 func (d *Dumper) Dump() {
 	d.reportLog("PostgreSQL database backup started.", false)
 
+	if d.p.Remote.IsRemote {
+		err := os.Setenv("PGPASSWORD", d.p.Remote.Password)
+		if err != nil {
+			d.l.Error("Couldn't set environment variable \"PGPASSWORD\"")
+		}
+	}
 	if len(d.p.Databases) == 0 {
 		d.reportLog("Getting database list...", false)
 		databases, err := d.getDBList()
@@ -90,7 +91,6 @@ func (d *Dumper) Dump() {
 
 		filePath, name, err := d.dumpDB(db, d.p.BackupDestination)
 		if err != nil {
-			d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
 			notify.SendAlarm("Couldn't backed up "+db+" - Error: "+err.Error(), true)
 			subject = "Backup failed db: " + db
 			message = "Couldn't backed up " + db + " - Error: " + err.Error()
@@ -159,8 +159,9 @@ func (d *Dumper) Dump() {
 			err = os.Remove(filePath)
 			if err != nil {
 				d.l.Error("Couldn't delete dump file at" + filePath + " - Error: " + err.Error())
+			} else {
+				d.l.Info("Dump file at" + filePath + " successfully deleted.")
 			}
-			d.l.Info("Dump file at" + filePath + " successfully deleted.")
 		}
 	}
 
@@ -178,8 +179,15 @@ func (d *Dumper) dumpDB(db string, dst string) (string, string, error) {
 	} else {
 		format = "gzip"
 	}
-
 	d.l.Info("Backup started. DB: " + db + " - Compression algorithm: " + format + " - Encrypted: " + strconv.FormatBool(encrypted))
+
+	var pgDumpArgs []string
+	if d.p.Remote.IsRemote {
+		pglink := "postgresql://" + d.p.Remote.User + ":" + d.p.Remote.Password + "@" + d.p.Remote.Host + ":" + d.p.Remote.Port + "/" + db
+		pgDumpArgs = append(pgDumpArgs, pglink)
+	} else {
+		pgDumpArgs = append(pgDumpArgs, db)
+	}
 
 	date := rightNow{
 		year:  time.Now().Format("2006"),
@@ -192,21 +200,25 @@ func (d *Dumper) dumpDB(db string, dst string) (string, string, error) {
 		if format == "gzip" {
 			name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".dump"
 			dumpPath = dst + "/" + name
-			cmd = exec.Command("/usr/bin/pg_dump", "-Fc", db, "-f", dumpPath)
+			pgDumpArgs = append(pgDumpArgs, "-Fc", "-f", dumpPath)
+			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
 			err := cmd.Run()
 			if err != nil {
+				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
 				return "", "", err
 			}
 		} else if format == "7zip" {
 			name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".sql.7z"
 			dumpPath = dst + "/" + name
-			cmd = exec.Command("/usr/bin/pg_dump", db)
+			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
 			stdout, err := cmd.StdoutPipe()
 			if err != nil {
+				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
 				return "", "", err
 			}
 			err = cmd.Start()
 			if err != nil {
+				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
 				return "", "", err
 			}
 			cmd2 := exec.Command("7z", "a", "-t7z", "-ms=on", "-si", dumpPath)
@@ -218,13 +230,16 @@ func (d *Dumper) dumpDB(db string, dst string) (string, string, error) {
 		if format == "gzip" {
 			name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".dump.7z"
 			dumpPath = dst + "/" + name
-			cmd = exec.Command("/usr/bin/pg_dump", "-Fc", db)
+			pgDumpArgs = append(pgDumpArgs, "-Fc")
+			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
 			stdout, err := cmd.StdoutPipe()
 			if err != nil {
+				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
 				return "", "", err
 			}
 			err = cmd.Start()
 			if err != nil {
+				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
 				return "", "", err
 			}
 			cmd2 := exec.Command("7z", "a", "-t7z", "-mx0", "-mhe=on", "-p"+d.p.ArchivePass, "-si", dumpPath)
@@ -234,13 +249,15 @@ func (d *Dumper) dumpDB(db string, dst string) (string, string, error) {
 		} else if format == "7zip" {
 			name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".sql.7z"
 			dumpPath = dst + "/" + name
-			cmd = exec.Command("/usr/bin/pg_dump", db)
+			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
 			stdout, err := cmd.StdoutPipe()
 			if err != nil {
+				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
 				return "", "", err
 			}
 			err = cmd.Start()
 			if err != nil {
+				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
 				return "", "", err
 			}
 			cmd2 := exec.Command("7z", "a", "-t7z", "-ms=on", "-mhe=on", "-p"+d.p.ArchivePass, "-si", dumpPath)

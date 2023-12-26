@@ -14,6 +14,7 @@ type Params struct {
 	Format            string // 7z, gz, default gz(pg_dump -Fc option - no further compression)
 	RemoveLocal       bool
 	ArchivePass       string
+	Remote            Remote
 	Notify            struct {
 		Email struct {
 			Enabled     bool
@@ -43,6 +44,14 @@ type Params struct {
 	}
 	Log  *log.Params
 	Fqdn string
+}
+
+type Remote struct {
+	IsRemote bool
+	Host     string
+	Port     string
+	User     string
+	Password string
 }
 
 type Webhook struct {

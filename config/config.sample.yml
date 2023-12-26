@@ -5,6 +5,12 @@ databases: # Eğer boş bırakılırsa tüm veritabanları yedeklenir (if databa
 format: gzip # gzip or 7zip. gzip if empty
 removeLocal: true
 archivePass: # Password for encrypting backups. No encryption if empty
+remote:
+  isRemote: false
+  host: 127.0.0.1
+  port: 5432
+  user: postgres
+  password: supersecretpassword
 s3:
   enabled: false
   region: aws region
