@@ -3,8 +3,8 @@ package notify
 import (
 	"bytes"
 	"encoding/json"
+	"monodb-backup/config"
 	"net/http"
-	"pgsql-backup/config"
 )
 
 type Logger interface {

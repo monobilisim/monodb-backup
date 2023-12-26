@@ -57,4 +57,4 @@ notify:
 
 log:
   enabled: true
-  file: /var/log/pgsql-backup.log
+  file: /var/log/monodb-backup.log

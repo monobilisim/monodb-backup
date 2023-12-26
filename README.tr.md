@@ -12,8 +12,8 @@
   <img src="https://monobilisim.com.tr/images/mono-bilisim.svg" width="340"/>
 </a>
 
-<h2 align="center">pgsql-backup</h2>
-<b>pgsql-backup</b>, PostgreSQL veritabanlarını yedeklemek için bir araçtır.
+<h2 align="center">monodb-backup</h2>
+<b>monodb-backup</b>, PostgreSQL veritabanlarını yedeklemek için bir araçtır.
 </div>
 
 ---
@@ -41,12 +41,12 @@
 
 ## Kullanım
 
-1. Yapılandırma dosyasını düzenleyerek pgsql-backup'ı yapılandırın (Konum `/etc/pgsql-backup.yml` )
+1. Yapılandırma dosyasını düzenleyerek monodb-backup'ı yapılandırın (Konum `/etc/monodb-backup.yml` )
 
 2. Yedeklemeyi postgres kullanıcısı ile aşağıdaki komutla çalıştırın:
 
 ```
-pgsql-backup
+monodb-backup
 ```
 
 Yapılandırmaya bağlı olarak her veritabanı için yedekler oluşturulacaktır. Yerel yedekler için bir yedekleme klasörü tanımlanmalıdır, ve klasör için gerekli yetkilerin verilmesi gerekmektedir. 
@@ -78,7 +78,7 @@ Yapılandırma dosyası YAML biçimindedir. Mevcut seçenekler şunlardır:
 
 ## Derleme
 
-pgsql-backup derlemek için:
+monodb-backup derlemek için:
 
 ```
 CGO_ENABLED=0 go build -ldflags '-extldflags "-static"'
@@ -88,15 +88,15 @@ CGO_ENABLED=0 go build -ldflags '-extldflags "-static"'
 
 ## Lisans
 
-pgsql-backup GPL-3.0 lisanslıdır. Ayrıntılar için [LICENSE](LICENSE) dosyasına bakın.
+monodb-backup GPL-3.0 lisanslıdır. Ayrıntılar için [LICENSE](LICENSE) dosyasına bakın.
 
-[contributors-shield]: https://img.shields.io/github/contributors/monobilisim/pgsql-backup.svg?style=for-the-badge
-[contributors-url]: https://github.com/monobilisim/pgsql-backup/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/monobilisim/pgsql-backup.svg?style=for-the-badge
-[forks-url]: https://github.com/monobilisim/pgsql-backup/network/members
-[stars-shield]: https://img.shields.io/github/stars/monobilisim/pgsql-backup.svg?style=for-the-badge
-[stars-url]: https://github.com/monobilisim/pgsql-backup/stargazers
-[issues-shield]: https://img.shields.io/github/issues/monobilisim/pgsql-backup.svg?style=for-the-badge
-[issues-url]: https://github.com/monobilisim/pgsql-backup/issues
-[license-shield]: https://img.shields.io/github/license/monobilisim/pgsql-backup.svg?style=for-the-badge
-[license-url]: https://github.com/monobilisim/pgsql-backup/blob/master/LICENSE
+[contributors-shield]: https://img.shields.io/github/contributors/monobilisim/monodb-backup.svg?style=for-the-badge
+[contributors-url]: https://github.com/monobilisim/monodb-backup/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/monobilisim/monodb-backup.svg?style=for-the-badge
+[forks-url]: https://github.com/monobilisim/monodb-backup/network/members
+[stars-shield]: https://img.shields.io/github/stars/monobilisim/monodb-backup.svg?style=for-the-badge
+[stars-url]: https://github.com/monobilisim/monodb-backup/stargazers
+[issues-shield]: https://img.shields.io/github/issues/monobilisim/monodb-backup.svg?style=for-the-badge
+[issues-url]: https://github.com/monobilisim/monodb-backup/issues
+[license-shield]: https://img.shields.io/github/license/monobilisim/monodb-backup.svg?style=for-the-badge
+[license-url]: https://github.com/monobilisim/monodb-backup/blob/master/LICENSE

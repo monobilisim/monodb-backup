@@ -1,4 +1,4 @@
-module pgsql-backup
+module monodb-backup
 
 go 1.13
 

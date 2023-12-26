@@ -2,8 +2,8 @@ package config
 
 import (
 	"flag"
+	"monodb-backup/log"
 	"os"
-	"pgsql-backup/log"
 
 	"github.com/spf13/viper"
 )
@@ -71,7 +71,7 @@ type EmailConfig struct {
 }
 
 func NewParams() (p *Params) {
-	filePath := flag.String("config", "/etc/pgsql-backup.yml", "Path of the configuration file in YAML format")
+	filePath := flag.String("config", "/etc/monodb-backup.yml", "Path of the configuration file in YAML format")
 	flag.Parse()
 
 	if _, err := os.Stat(*filePath); os.IsNotExist(err) {

@@ -1,8 +1,8 @@
 package notify
 
 import (
+	"monodb-backup/config"
 	"net/smtp"
-	"pgsql-backup/config"
 )
 
 func Email(params *config.Params, subject string, message string, isError bool) error {

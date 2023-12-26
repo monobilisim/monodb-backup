@@ -1,10 +1,10 @@
 package main
 
 import (
-	"pgsql-backup/backup"
-	"pgsql-backup/config"
-	"pgsql-backup/log"
-	"pgsql-backup/notify"
+	"monodb-backup/backup"
+	"monodb-backup/config"
+	"monodb-backup/log"
+	"monodb-backup/notify"
 )
 
 func main() {

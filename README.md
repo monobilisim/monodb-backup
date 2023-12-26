@@ -12,8 +12,8 @@
   <img src="https://monobilisim.com.tr/images/mono-bilisim.svg" width="340"/>
 </a>
 
-<h2 align="center">pgsql-backup</h2>
-<b>pgsql-backup</b> is a tool for backing up PostgreSQL databases.
+<h2 align="center">monodb-backup</h2>
+<b>monodb-backup</b> is a tool for backing up PostgreSQL databases.
 </div>
 
 ---
@@ -41,12 +41,12 @@
 
 ## Usage
 
-1. Configure pgsql-backup by editing the config file (default is `/etc/pgsql-backup.yml` )
+1. Configure monodb-backup by editing the config file (default is `/etc/monodb-backup.yml` )
 
 2. Run the backup using the following command as the postgres user:
 
 ```
-pgsql-backup
+monodb-backup
 ```
 
 Backups will be created for each database based on the configuration. For local backups, ensure that you define a backup folder with appropriate permissions.
@@ -78,7 +78,7 @@ See `config/config.sample.yml` for an example configuration file.
 
 ## Building
 
-To build pgsql-backup:
+To build monodb-backup:
 
 ```
 CGO_ENABLED=0 go build -ldflags '-extldflags "-static"'
@@ -88,15 +88,15 @@ CGO_ENABLED=0 go build -ldflags '-extldflags "-static"'
 
 ## License
 
-pgsql-backup is GPL-3.0 licensed. See [LICENSE](LICENSE) file for details.
+monodb-backup is GPL-3.0 licensed. See [LICENSE](LICENSE) file for details.
 
-[contributors-shield]: https://img.shields.io/github/contributors/monobilisim/pgsql-backup.svg?style=for-the-badge
-[contributors-url]: https://github.com/monobilisim/pgsql-backup/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/monobilisim/pgsql-backup.svg?style=for-the-badge
-[forks-url]: https://github.com/monobilisim/pgsql-backup/network/members
-[stars-shield]: https://img.shields.io/github/stars/monobilisim/pgsql-backup.svg?style=for-the-badge
-[stars-url]: https://github.com/monobilisim/pgsql-backup/stargazers
-[issues-shield]: https://img.shields.io/github/issues/monobilisim/pgsql-backup.svg?style=for-the-badge
-[issues-url]: https://github.com/monobilisim/pgsql-backup/issues
-[license-shield]: https://img.shields.io/github/license/monobilisim/pgsql-backup.svg?style=for-the-badge
-[license-url]: https://github.com/monobilisim/pgsql-backup/blob/master/LICENSE
+[contributors-shield]: https://img.shields.io/github/contributors/monobilisim/monodb-backup.svg?style=for-the-badge
+[contributors-url]: https://github.com/monobilisim/monodb-backup/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/monobilisim/monodb-backup.svg?style=for-the-badge
+[forks-url]: https://github.com/monobilisim/monodb-backup/network/members
+[stars-shield]: https://img.shields.io/github/stars/monobilisim/monodb-backup.svg?style=for-the-badge
+[stars-url]: https://github.com/monobilisim/monodb-backup/stargazers
+[issues-shield]: https://img.shields.io/github/issues/monobilisim/monodb-backup.svg?style=for-the-badge
+[issues-url]: https://github.com/monobilisim/monodb-backup/issues
+[license-shield]: https://img.shields.io/github/license/monobilisim/monodb-backup.svg?style=for-the-badge
+[license-url]: https://github.com/monobilisim/monodb-backup/blob/master/LICENSE

@@ -2,10 +2,10 @@ package backup
 
 import (
 	"bytes"
+	"monodb-backup/config"
+	"monodb-backup/notify"
 	"os"
 	"os/exec"
-	"pgsql-backup/config"
-	"pgsql-backup/notify"
 	"strconv"
 	"strings"
 	"time"
@@ -36,7 +36,7 @@ func NewDumper(params *config.Params, logger Logger) (d *Dumper) {
 func (d *Dumper) reportLog(message string, isError bool) {
 	d.l.Info(message)
 	if isError {
-		notify.SendAlarm("[ERROR] pgsql-backup at "+hostname+"\n"+message, isError)
+		notify.SendAlarm("[ERROR] monodb-backup at "+hostname+"\n"+message, isError)
 	}
 }
 
