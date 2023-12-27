@@ -1,14 +1,9 @@
 package backup
 
 import (
-	"bytes"
 	"monodb-backup/config"
 	"monodb-backup/notify"
 	"os"
-	"os/exec"
-	"strconv"
-	"strings"
-	"time"
 )
 
 var hostname, _ = os.Hostname()
@@ -40,42 +35,18 @@ func (d *Dumper) reportLog(message string, isError bool) {
 	}
 }
 
-func (d *Dumper) getDBList() ([]string, error) {
-	psqlArgs := []string{"-lqt"}
-	if d.p.Remote.IsRemote {
-		pglink := "postgresql://" + d.p.Remote.User + ":" + d.p.Remote.Password + "@" + d.p.Remote.Host + ":" + d.p.Remote.Port
-		psqlArgs = append(psqlArgs, pglink)
+func (d *Dumper) getDBList() (dbList []string, err error) {
+	if d.p.Database == "" || d.p.Database == "postgresql" {
+		dbList, err = getPSQLList(d.p.Remote, d.l)
+	} else if d.p.Database == "mysql" {
+		dbList, err = getMySQLList(d.p.Remote, d.l)
 	}
-	cmd := exec.Command("/usr/bin/psql", psqlArgs...)
-	out, err := cmd.Output()
-	if err != nil {
-		d.l.Error("Could not get database list: " + err.Error())
-		d.l.Error("Command output: " + string(out))
-		return nil, err
-	}
-
-	var dbList []string
-	for _, line := range bytes.Split(out, []byte{'\n'}) {
-		if len(line) > 0 {
-			ln := strings.TrimSpace(strings.Split(string(line), "|")[0])
-			if ln == "" || ln == "template0" || ln == "template1" || ln == "postgres" {
-				continue
-			}
-			dbList = append(dbList, ln)
-		}
-	}
-	return dbList, nil
+	return
 }
 
 func (d *Dumper) Dump() {
-	d.reportLog("PostgreSQL database backup started.", false)
+	d.reportLog("Database backup started.", false)
 
-	if d.p.Remote.IsRemote {
-		err := os.Setenv("PGPASSWORD", d.p.Remote.Password)
-		if err != nil {
-			d.l.Error("Couldn't set environment variable \"PGPASSWORD\"")
-		}
-	}
 	if len(d.p.Databases) == 0 {
 		d.reportLog("Getting database list...", false)
 		databases, err := d.getDBList()
@@ -91,9 +62,9 @@ func (d *Dumper) Dump() {
 
 		filePath, name, err := d.dumpDB(db, d.p.BackupDestination)
 		if err != nil {
-			notify.SendAlarm("Couldn't backed up "+db+" - Error: "+err.Error(), true)
+			notify.SendAlarm("Couldn't back up "+db+" - Error: "+err.Error(), true)
 			subject = "Backup failed db: " + db
-			message = "Couldn't backed up " + db + " - Error: " + err.Error()
+			message = "Couldn't back up " + db + " - Error: " + err.Error()
 			err := notify.Email(d.p, subject, message, true)
 			if err != nil {
 				d.l.Error("Couldn't send notification mail - Error: " + err.Error())
@@ -165,109 +136,16 @@ func (d *Dumper) Dump() {
 		}
 	}
 
-	d.reportLog("PostgreSQL database backup finished.", false)
+	d.reportLog("Database backup finished.", false)
 }
 
-func (d *Dumper) dumpDB(db string, dst string) (string, string, error) {
-	encrypted := d.p.ArchivePass != ""
-	var dumpPath string
-	var name string
-	var format string
-	var cmd *exec.Cmd
-	if d.p.Format != "" {
-		format = d.p.Format
-	} else {
-		format = "gzip"
+func (d *Dumper) dumpDB(db string, dst string) (dumpPath string, name string, err error) {
+	if d.p.Database == "" || d.p.Database == "postgresql" {
+		dumpPath, name, err = dumpPSQLDb(db, dst, *d.p, d.l)
+	} else if d.p.Database == "mysql" {
+		dumpPath, name, err = dumpMySQLDb(db, dst, *d.p, d.l)
 	}
-	d.l.Info("Backup started. DB: " + db + " - Compression algorithm: " + format + " - Encrypted: " + strconv.FormatBool(encrypted))
-
-	var pgDumpArgs []string
-	if d.p.Remote.IsRemote {
-		pglink := "postgresql://" + d.p.Remote.User + ":" + d.p.Remote.Password + "@" + d.p.Remote.Host + ":" + d.p.Remote.Port + "/" + db
-		pgDumpArgs = append(pgDumpArgs, pglink)
-	} else {
-		pgDumpArgs = append(pgDumpArgs, db)
-	}
-
-	date := rightNow{
-		year:  time.Now().Format("2006"),
-		month: time.Now().Format("01"),
-		now:   time.Now().Format("2006-01-02-150405"),
-	}
-	_ = os.MkdirAll(dst+"/"+date.year+"/"+date.month, os.ModePerm)
-
-	if !encrypted {
-		if format == "gzip" {
-			name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".dump"
-			dumpPath = dst + "/" + name
-			pgDumpArgs = append(pgDumpArgs, "-Fc", "-f", dumpPath)
-			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
-			err := cmd.Run()
-			if err != nil {
-				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
-				return "", "", err
-			}
-		} else if format == "7zip" {
-			name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".sql.7z"
-			dumpPath = dst + "/" + name
-			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
-			stdout, err := cmd.StdoutPipe()
-			if err != nil {
-				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
-				return "", "", err
-			}
-			err = cmd.Start()
-			if err != nil {
-				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
-				return "", "", err
-			}
-			cmd2 := exec.Command("7z", "a", "-t7z", "-ms=on", "-si", dumpPath)
-			cmd2.Stdin = stdout
-
-			err = cmd2.Run()
-		}
-	} else {
-		if format == "gzip" {
-			name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".dump.7z"
-			dumpPath = dst + "/" + name
-			pgDumpArgs = append(pgDumpArgs, "-Fc")
-			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
-			stdout, err := cmd.StdoutPipe()
-			if err != nil {
-				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
-				return "", "", err
-			}
-			err = cmd.Start()
-			if err != nil {
-				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
-				return "", "", err
-			}
-			cmd2 := exec.Command("7z", "a", "-t7z", "-mx0", "-mhe=on", "-p"+d.p.ArchivePass, "-si", dumpPath)
-			cmd2.Stdin = stdout
-
-			err = cmd2.Run()
-		} else if format == "7zip" {
-			name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".sql.7z"
-			dumpPath = dst + "/" + name
-			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
-			stdout, err := cmd.StdoutPipe()
-			if err != nil {
-				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
-				return "", "", err
-			}
-			err = cmd.Start()
-			if err != nil {
-				d.l.Error("Couldn't backed up " + db + " - Error: " + err.Error())
-				return "", "", err
-			}
-			cmd2 := exec.Command("7z", "a", "-t7z", "-ms=on", "-mhe=on", "-p"+d.p.ArchivePass, "-si", dumpPath)
-			cmd2.Stdin = stdout
-
-			err = cmd2.Run()
-		}
-	}
-	d.l.Info("Successfully backed up " + db + " at: " + dumpPath)
-	return dumpPath, name, nil
+	return
 }
 
 func (d *Dumper) uploadS3(filePath, name string) error {

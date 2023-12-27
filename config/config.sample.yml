@@ -1,16 +1,20 @@
 backupDestination: /var/backups
-databases: # Eğer boş bırakılırsa tüm veritabanları yedeklenir (if databases is empty, all databases will be backed up)
+database: postgresql # or mysql - default is postgresql
+databases: # all databases if empty
   - db1
   - db2
-format: gzip # gzip or 7zip. gzip if empty
+format: gzip
+  # gzip or 7zip. gzip if empty
+  # gzip for postgresql doesn't use gzip directly but uses custom format to take sql dump with the same algorithm as gzip
+  # for mysql; if encryption is enabled, it will use 7zip even if the format is gzip
 removeLocal: true
 archivePass: # Password for encrypting backups. No encryption if empty
 remote:
-  isRemote: false
+  isRemote: false # for mysql; even if isRemote false and you are backing up as the msyql user in the local machine, you still have to provide user and password/
   host: 127.0.0.1
   port: 5432
-  user: postgres
-  password: supersecretpassword
+  user: postgres        # necessary for mysql, even if isRemote false
+  password: password    # necessary for mysql, even if isRemote false
 s3:
   enabled: false
   region: aws region
