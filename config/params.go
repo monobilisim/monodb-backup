@@ -16,6 +16,7 @@ type Params struct {
 	RemoveLocal       bool
 	ArchivePass       string
 	Remote            Remote
+	Rotation          Rotation
 	Notify            struct {
 		Email struct {
 			Enabled     bool
@@ -45,6 +46,12 @@ type Params struct {
 	}
 	Log  *log.Params
 	Fqdn string
+}
+
+type Rotation struct {
+	Enabled bool
+	Period  string // week or month
+	Suffix  string // day db-monday.sql.7z - hour db-monday-15.sql.7z - minute db-monday-15-24.sql.7z
 }
 
 type Remote struct {

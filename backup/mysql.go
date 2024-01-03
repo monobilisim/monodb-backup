@@ -26,7 +26,7 @@ func getMySQLList(params config.Remote, logger Logger) ([]string, error) {
 	for i, line := range bytes.Split(out, []byte{'\n'}) {
 		if len(line) > 0 && i > 0 {
 			ln := string(line)
-			if ln == "" || ln == "information_schema" || ln == "performance_schema" || ln == "sys" { // TODO mysql veritabanindan user tablosunu al
+			if ln == "" || ln == "information_schema" || ln == "performance_schema" || ln == "sys" {
 				continue
 			}
 			dbList = append(dbList, ln)
@@ -38,6 +38,7 @@ func getMySQLList(params config.Remote, logger Logger) ([]string, error) {
 func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (string, string, error) {
 	encrypted := params.ArchivePass != ""
 	var format string
+	var name string
 	var cmd *exec.Cmd
 	var cmd2 *exec.Cmd
 	if encrypted {
@@ -54,14 +55,18 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 	} else {
 		mysqlArgs = append(mysqlArgs, "-u"+params.Remote.User, "-p"+params.Remote.Password, db)
 	}
-
 	date := rightNow{
 		year:  time.Now().Format("2006"),
 		month: time.Now().Format("01"),
-		now:   time.Now().Format("2006-01-02-150405"),
 	}
-	name := date.year + "/" + date.month + "/" + db + "-" + date.now + ".sql.7z"
-	dumpPath := dst + "/" + name
+
+	if db == "mysql" {
+		mysqlArgs = append(mysqlArgs, "user")
+		name = dumpName(db+"_users", params.Rotation)
+	} else {
+		name = dumpName(db, params.Rotation)
+	}
+	var dumpPath string
 	_ = os.MkdirAll(dst+"/"+date.year+"/"+date.month, os.ModePerm)
 
 	cmd = exec.Command("/usr/bin/mysqldump", mysqlArgs...)
@@ -77,7 +82,7 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 	}
 
 	if !encrypted && format == "gzip" {
-		name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".sql.gz"
+		name = name + ".sql.gz"
 		dumpPath = dst + "/" + name
 		cmd2 = exec.Command("gzip")
 		cmd2.Stdin = stdout
@@ -109,6 +114,8 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 			return "", "", err
 		}
 	} else {
+		name = name + ".sql.7z"
+		dumpPath = dst + "/" + name
 		if encrypted {
 			cmd2 = exec.Command("7z", "a", "-t7z", "-ms=on", "-mhe=on", "-p"+params.ArchivePass, "-si", dumpPath)
 		} else {

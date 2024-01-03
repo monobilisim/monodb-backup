@@ -15,6 +15,10 @@ remote:
   port: 5432
   user: postgres        # necessary for mysql, even if isRemote false
   password: password    # necessary for mysql, even if isRemote false
+rotation:
+  enabled: true
+  period: week # week or month - db-week_1.sql.7z .. db-week_52.sql.7z - db-january.sql.7z .. db-december.sql.7z
+  suffix: minute # day db-week-day.sql.7z - hour db-week-day-15.sql.7z - minute db-week-day-15-24.sql.7z
 s3:
   enabled: false
   region: aws region

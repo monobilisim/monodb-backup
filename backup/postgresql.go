@@ -40,9 +40,11 @@ func getPSQLList(params config.Remote, logger Logger) ([]string, error) {
 func dumpPSQLDb(db string, dst string, params config.Params, logger Logger) (string, string, error) {
 	encrypted := params.ArchivePass != ""
 	var dumpPath string
-	var name string
 	var format string
 	var cmd *exec.Cmd
+
+	name := dumpName(db, params.Rotation)
+
 	if params.Format != "" {
 		format = params.Format
 	} else {
@@ -61,13 +63,12 @@ func dumpPSQLDb(db string, dst string, params config.Params, logger Logger) (str
 	date := rightNow{
 		year:  time.Now().Format("2006"),
 		month: time.Now().Format("01"),
-		now:   time.Now().Format("2006-01-02-150405"),
 	}
 	_ = os.MkdirAll(dst+"/"+date.year+"/"+date.month, os.ModePerm)
 
 	if !encrypted {
 		if format == "gzip" {
-			name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".dump"
+			name = name + ".dump"
 			dumpPath = dst + "/" + name
 			pgDumpArgs = append(pgDumpArgs, "-Fc", "-f", dumpPath)
 			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
@@ -77,7 +78,7 @@ func dumpPSQLDb(db string, dst string, params config.Params, logger Logger) (str
 				return "", "", err
 			}
 		} else if format == "7zip" {
-			name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".sql.7z"
+			name = name + ".sql.7z"
 			dumpPath = dst + "/" + name
 			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
 			stdout, err := cmd.StdoutPipe()
@@ -97,7 +98,7 @@ func dumpPSQLDb(db string, dst string, params config.Params, logger Logger) (str
 		}
 	} else {
 		if format == "gzip" {
-			name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".dump.7z"
+			name = name + ".dump.7z"
 			dumpPath = dst + "/" + name
 			pgDumpArgs = append(pgDumpArgs, "-Fc")
 			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
@@ -116,7 +117,7 @@ func dumpPSQLDb(db string, dst string, params config.Params, logger Logger) (str
 
 			err = cmd2.Run()
 		} else if format == "7zip" {
-			name = date.year + "/" + date.month + "/" + db + "-" + date.now + ".sql.7z"
+			name = name + ".sql.7z"
 			dumpPath = dst + "/" + name
 			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
 			stdout, err := cmd.StdoutPipe()

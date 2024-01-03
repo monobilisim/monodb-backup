@@ -4,6 +4,7 @@ import (
 	"monodb-backup/config"
 	"monodb-backup/notify"
 	"os"
+	"time"
 )
 
 var hostname, _ = os.Hostname()
@@ -14,9 +15,42 @@ type Dumper struct {
 }
 
 type rightNow struct {
-	year  string
-	month string
-	now   string
+	year   string
+	month  string
+	day    string
+	hour   string
+	minute string
+	now    string
+}
+
+func dumpName(db string, params config.Rotation) string {
+	if !params.Enabled {
+		date := rightNow{
+			year:  time.Now().Format("2006"),
+			month: time.Now().Format("01"),
+			now:   time.Now().Format("2006-01-02-150405"),
+		}
+		name := date.year + "/" + date.month + "/" + db + "-" + date.now
+		return name
+	} else {
+		suffix := params.Suffix
+		date := rightNow{
+			day:    time.Now().Format("Monday"),
+			hour:   time.Now().Format("January-Monday-15"),
+			minute: time.Now().Format("January-Monday-15_04"),
+			now:    time.Now().Format("2006-01-02-150405"),
+		}
+		switch suffix {
+		case "day":
+			return db + "-" + date.day
+		case "hour":
+			return db + "-" + date.hour
+		case "minute":
+			return db + "-" + date.minute
+		default:
+			return db + "-" + date.day
+		}
+	}
 }
 
 // NewDumper creates a new Dumper instance.
@@ -80,7 +114,7 @@ func (d *Dumper) Dump() {
 			}
 
 			if d.p.S3.Enabled {
-				err = d.uploadS3(filePath, name)
+				err = d.uploadS3(filePath, name, db)
 				if err != nil {
 					d.l.Error("Couldn't upload " + filePath + " to S3" + " - Error: " + err.Error())
 					notify.SendAlarm("Couldn't upload "+filePath+" to S3"+" - Error: "+err.Error(), true)
@@ -103,7 +137,7 @@ func (d *Dumper) Dump() {
 			}
 
 			if d.p.Minio.Enabled {
-				err = d.uploadMinIO(filePath, name)
+				err = d.uploadMinIO(filePath, name, db)
 				if err != nil {
 					d.l.Error("Couldn't upload " + filePath + " to MinIO" + " - Error: " + err.Error())
 					notify.SendAlarm("Couldn't upload "+filePath+" to MinIO"+" - Error: "+err.Error(), true)
@@ -148,7 +182,7 @@ func (d *Dumper) dumpDB(db string, dst string) (dumpPath string, name string, er
 	return
 }
 
-func (d *Dumper) uploadS3(filePath, name string) error {
+func (d *Dumper) uploadS3(filePath, name, db string) error {
 	uploader, err := newS3Uploader(d.p.S3.Region, d.p.S3.AccessKey, d.p.S3.SecretKey)
 	if err != nil {
 		return err
@@ -157,7 +191,7 @@ func (d *Dumper) uploadS3(filePath, name string) error {
 		if d.p.S3.Path != "" {
 			target = d.p.S3.Path + "/" + target
 		}
-		err = uploadFileToS3(uploader, filePath, d.p.S3.Bucket, target)
+		err = uploadFileToS3(uploader, filePath, d.p.S3.Bucket, target, d.p.Rotation, db, d.p.S3.Path)
 		if err != nil {
 			return err
 		}
@@ -166,7 +200,7 @@ func (d *Dumper) uploadS3(filePath, name string) error {
 	return nil
 }
 
-func (d *Dumper) uploadMinIO(filePath, name string) error {
+func (d *Dumper) uploadMinIO(filePath, name, db string) error {
 	minioClient, err := newMinioClient(
 		d.p.Minio.Endpoint,
 		d.p.Minio.AccessKey,
@@ -180,7 +214,7 @@ func (d *Dumper) uploadMinIO(filePath, name string) error {
 		if d.p.Minio.Path != "" {
 			target = d.p.Minio.Path + "/" + target
 		}
-		err = uploadFileToMinio(minioClient, filePath, d.p.Minio.Bucket, target)
+		err = uploadFileToMinio(minioClient, d.p.Rotation, db, filePath, d.p.Minio.Bucket, target, d.p.Minio.Path)
 		if err != nil {
 			return err
 		}
