@@ -23,6 +23,8 @@ type rightNow struct {
 	now    string
 }
 
+var dateNow rightNow
+
 func dumpName(db string, params config.Rotation) string {
 	if !params.Enabled {
 		date := rightNow{
@@ -34,21 +36,15 @@ func dumpName(db string, params config.Rotation) string {
 		return name
 	} else {
 		suffix := params.Suffix
-		date := rightNow{
-			day:    time.Now().Format("Monday"),
-			hour:   time.Now().Format("January-Monday-15"),
-			minute: time.Now().Format("January-Monday-15_04"),
-			now:    time.Now().Format("2006-01-02-150405"),
-		}
 		switch suffix {
 		case "day":
-			return db + "-" + date.day
+			return db + "-" + dateNow.day
 		case "hour":
-			return db + "-" + date.hour
+			return db + "-" + dateNow.hour
 		case "minute":
-			return db + "-" + date.minute
+			return db + "-" + dateNow.minute
 		default:
-			return db + "-" + date.day
+			return db + "-" + dateNow.day
 		}
 	}
 }
@@ -80,6 +76,13 @@ func (d *Dumper) getDBList() (dbList []string, err error) {
 
 func (d *Dumper) Dump() {
 	d.reportLog("Database backup started.", false)
+
+	dateNow = rightNow{
+		day:    time.Now().Format("Monday"),
+		hour:   time.Now().Format("Monday-15"),
+		minute: time.Now().Format("Monday-15_04"),
+		now:    time.Now().Format("2006-01-02-150405"),
+	}
 
 	if len(d.p.Databases) == 0 {
 		d.reportLog("Getting database list...", false)
