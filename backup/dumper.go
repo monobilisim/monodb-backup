@@ -38,11 +38,11 @@ func dumpName(db string, params config.Rotation) string {
 		suffix := params.Suffix
 		switch suffix {
 		case "day":
-			return "Daily/" + db + "-" + dateNow.day
+			return "Daily/" + dateNow.day + "/" + db + "-" + dateNow.day
 		case "hour":
-			return "Hourly/" + dateNow.day + db + "-" + dateNow.hour
+			return "Hourly/" + dateNow.day + "/" + dateNow.hour + "/" + db + "-" + dateNow.hour
 		case "minute":
-			return "Custom/" + dateNow.day + db + "-" + dateNow.minute
+			return "Custom/" + dateNow.day + "/" + dateNow.day + "/" + db + "-" + dateNow.minute
 		default:
 			return "Daily/" + db + "-" + dateNow.day
 		}
