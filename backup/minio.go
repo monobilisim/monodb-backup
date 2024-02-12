@@ -28,18 +28,18 @@ func rotate(db, rotation string) (bool, string) {
 	t := time.Now()
 	_, week := t.ISOWeek()
 	date := rightNow{
-		month: time.Now().Format("January"),
-		day:   time.Now().Format("Monday"),
+		month: time.Now().Format("Jan"),
+		day:   time.Now().Format("Mon"),
 	}
 	switch rotation {
 	case "month":
 		yesterday := t.AddDate(0, 0, -1)
 		if yesterday.Month() != t.Month() {
-			return true, db + "-" + date.month
+			return true, "Monthly/" + db + "-" + date.month
 		}
 	case "week":
-		if date.day == "Monday" {
-			return true, db + "-week_" + strconv.Itoa(week)
+		if date.day == "Mon" {
+			return true, "Weekly/" + db + "-week_" + strconv.Itoa(week)
 		}
 	}
 	return false, ""

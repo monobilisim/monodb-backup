@@ -38,13 +38,13 @@ func dumpName(db string, params config.Rotation) string {
 		suffix := params.Suffix
 		switch suffix {
 		case "day":
-			return db + "-" + dateNow.day
+			return "Daily/" + db + "-" + dateNow.day
 		case "hour":
-			return db + "-" + dateNow.hour
+			return "Hourly/" + dateNow.day + db + "-" + dateNow.hour
 		case "minute":
-			return db + "-" + dateNow.minute
+			return "Custom/" + dateNow.day + db + "-" + dateNow.minute
 		default:
-			return db + "-" + dateNow.day
+			return "Daily/" + db + "-" + dateNow.day
 		}
 	}
 }
@@ -78,9 +78,9 @@ func (d *Dumper) Dump() {
 	d.reportLog("Database backup started.", false)
 
 	dateNow = rightNow{
-		day:    time.Now().Format("Monday"),
-		hour:   time.Now().Format("Monday-15"),
-		minute: time.Now().Format("Monday-15_04"),
+		day:    time.Now().Format("Mon"),
+		hour:   time.Now().Format("Mon-15"),
+		minute: time.Now().Format("Mon-15_04"),
 		now:    time.Now().Format("2006-01-02-150405"),
 	}
 
