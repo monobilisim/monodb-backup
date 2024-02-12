@@ -38,13 +38,13 @@ func dumpName(db string, params config.Rotation) string {
 		suffix := params.Suffix
 		switch suffix {
 		case "day":
-			return "Daily/" + dateNow.day + "/" + db + "-" + dateNow.day
+			return db + "-" + dateNow.day
 		case "hour":
-			return "Hourly/" + dateNow.day + "/" + dateNow.hour + "/" + db + "-" + dateNow.hour
+			return db + "-" + dateNow.hour
 		case "minute":
-			return "Custom/" + dateNow.day + "/" + dateNow.day + "/" + db + "-" + dateNow.minute
+			return db + "-" + dateNow.minute
 		default:
-			return "Daily/" + db + "-" + dateNow.day
+			return db + "-" + dateNow.day
 		}
 	}
 }
@@ -116,8 +116,30 @@ func (d *Dumper) Dump() {
 				d.l.Error("Couldn't send notification mail - Error: " + err.Error())
 			}
 
+			var nameWithPath string
+			if !d.p.Rotation.Enabled {
+				date := rightNow{
+					year:  time.Now().Format("2006"),
+					month: time.Now().Format("01"),
+					now:   time.Now().Format("2006-01-02-150405"),
+				}
+				nameWithPath = date.year + "/" + date.month + "/" + db + "-" + date.now
+			} else {
+				suffix := d.p.Rotation.Suffix
+				switch suffix {
+				case "day":
+					nameWithPath = "Daily/" + dateNow.day + "/" + db + "-" + dateNow.day
+				case "hour":
+					nameWithPath = "Hourly/" + dateNow.day + "/" + dateNow.hour + "/" + db + "-" + dateNow.hour
+				case "minute":
+					nameWithPath = "Custom/" + dateNow.day + "/" + dateNow.hour + "/" + db + "-" + dateNow.minute
+				default:
+					nameWithPath = "Daily/" + db + "-" + dateNow.day
+				}
+			}
+
 			if d.p.S3.Enabled {
-				err = d.uploadS3(filePath, name, db)
+				err = d.uploadS3(filePath, nameWithPath, db)
 				if err != nil {
 					d.l.Error("Couldn't upload " + filePath + " to S3" + " - Error: " + err.Error())
 					notify.SendAlarm("Couldn't upload "+filePath+" to S3"+" - Error: "+err.Error(), true)
@@ -140,7 +162,7 @@ func (d *Dumper) Dump() {
 			}
 
 			if d.p.Minio.Enabled {
-				err = d.uploadMinIO(filePath, name, db)
+				err = d.uploadMinIO(filePath, nameWithPath, db)
 				if err != nil {
 					d.l.Error("Couldn't upload " + filePath + " to MinIO" + " - Error: " + err.Error())
 					notify.SendAlarm("Couldn't upload "+filePath+" to MinIO"+" - Error: "+err.Error(), true)
