@@ -128,13 +128,13 @@ func (d *Dumper) Dump() {
 				suffix := d.p.Rotation.Suffix
 				switch suffix {
 				case "day":
-					nameWithPath = "Daily/" + dateNow.day + "/" + db + "-" + dateNow.day
+					nameWithPath = "Daily/" + dateNow.day + "/" + name
 				case "hour":
-					nameWithPath = "Hourly/" + dateNow.day + "/" + dateNow.hour + "/" + db + "-" + dateNow.hour
+					nameWithPath = "Hourly/" + dateNow.day + "/" + dateNow.hour + "/" + name
 				case "minute":
-					nameWithPath = "Custom/" + dateNow.day + "/" + dateNow.hour + "/" + db + "-" + dateNow.minute
+					nameWithPath = "Custom/" + dateNow.day + "/" + dateNow.hour + "/" + name
 				default:
-					nameWithPath = "Daily/" + db + "-" + dateNow.day
+					nameWithPath = "Daily/" + name
 				}
 			}
 
