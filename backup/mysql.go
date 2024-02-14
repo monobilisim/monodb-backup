@@ -51,14 +51,16 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 
 	var mysqlArgs []string
 	if params.Remote.IsRemote {
-		mysqlArgs = append(mysqlArgs, "-h"+params.Remote.Host, "--port="+params.Remote.Port, "-u"+params.Remote.User, "-p"+params.Remote.Password, db)
+		mysqlArgs = append(mysqlArgs, "-h"+params.Remote.Host, "--port="+params.Remote.Port, "-u"+params.Remote.User, "-p"+params.Remote.Password)
 	} else {
-		mysqlArgs = append(mysqlArgs, "-u"+params.Remote.User, "-p"+params.Remote.Password, db)
+		mysqlArgs = append(mysqlArgs, "-u"+params.Remote.User, "-p"+params.Remote.Password)
 	}
 	date := rightNow{
 		year:  time.Now().Format("2006"),
 		month: time.Now().Format("01"),
 	}
+
+	mysqlArgs = append(mysqlArgs, "--single-transaction", "--quick", "--skip-lock-tables", "--routines", "--triggers", db)
 
 	if db == "mysql" {
 		mysqlArgs = append(mysqlArgs, "user")
