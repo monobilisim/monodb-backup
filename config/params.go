@@ -12,6 +12,7 @@ type Params struct {
 	BackupDestination string
 	Database          string
 	Databases         []string
+	Exclude           []string
 	Format            string // 7z, gz, default gz(pg_dump -Fc option - no further compression)
 	RemoveLocal       bool
 	ArchivePass       string

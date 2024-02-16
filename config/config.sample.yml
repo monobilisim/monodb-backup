@@ -3,6 +3,9 @@ database: postgresql # or mysql - default is postgresql
 databases: # all databases if empty
   - db1
   - db2
+exclude: # databases to be excluded
+  - db3
+  - db4
 format: gzip
   # gzip or 7zip. gzip if empty
   # gzip for postgresql doesn't use gzip directly but uses custom format to take sql dump with the same algorithm as gzip

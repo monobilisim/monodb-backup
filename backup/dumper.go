@@ -93,6 +93,21 @@ func (d *Dumper) Dump() {
 		d.p.Databases = databases
 	}
 
+	if len(d.p.Exclude) != 0 {
+		excludeMap := make(map[string]bool)
+		for _, item := range d.p.Exclude {
+			excludeMap[item] = true
+		}
+
+		tmpDatabases := make([]string, 0, len(d.p.Databases))
+		for _, item := range d.p.Databases {
+			if !excludeMap[item] {
+				tmpDatabases = append(tmpDatabases, item)
+			}
+		}
+		d.p.Databases = tmpDatabases
+	}
+
 	for _, db := range d.p.Databases {
 		var subject string
 		var message string
