@@ -38,6 +38,11 @@ minio:
   secretKey: minio secret key
   secure: false
   insecureSkipVerify: false
+sftp:
+  enabled: false
+  user: username
+  target: ssh.example.com
+  port: 22
 notify:
   email:
     enabled: false

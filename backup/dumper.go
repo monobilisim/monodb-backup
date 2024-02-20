@@ -200,6 +200,13 @@ func (d *Dumper) Dump() {
 			}
 		}
 
+		if d.p.SFTP.Enabled {
+			err = SendSFTP(filePath, "/root/"+name, d.p.SFTP.User, d.p.SFTP.Target, d.p.SFTP.Port)
+			if err != nil {
+				d.l.Error("Couldn't upload " + name + " at " + filePath + " to target with sftp" + " - Error: " + err.Error())
+			}
+		}
+
 		if d.p.RemoveLocal {
 			err = os.Remove(filePath)
 			if err != nil {

@@ -45,6 +45,12 @@ type Params struct {
 		Secure             bool
 		InsecureSkipVerify bool
 	}
+	SFTP struct {
+		Enabled bool
+		User    string
+		Target  string
+		Port    string
+	}
 	Log  *log.Params
 	Fqdn string
 }

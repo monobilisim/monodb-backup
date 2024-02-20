@@ -129,6 +129,5 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 		err = cmd2.Run()
 	}
 
-	logger.Info("Successfully backed up " + db + " at: " + dumpPath)
 	return dumpPath, name, nil
 }
