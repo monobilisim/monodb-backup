@@ -41,6 +41,8 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 	var name string
 	var cmd *exec.Cmd
 	var cmd2 *exec.Cmd
+	var stderr bytes.Buffer
+
 	if encrypted {
 		format = "7zip"
 	} else {
@@ -103,10 +105,11 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 		}()
 
 		cmd2.Stdout = f
+		cmd2.Stderr = &stderr
 
 		err = cmd2.Start()
 		if err != nil {
-			logger.Error("Couldn't compress " + db + " - Error: " + err.Error())
+			logger.Error("Couldn't compress " + db + " - Error: " + err.Error() + " - " + stderr.String())
 			return "", "", err
 		}
 
@@ -125,8 +128,13 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 		}
 
 		cmd2.Stdin = stdout
+		cmd2.Stderr = &stderr
 
 		err = cmd2.Run()
+		if err != nil {
+			logger.Error("Couldn't compress " + db + " - Error: " + err.Error() + " - " + stderr.String())
+			return "", "", err
+		}
 	}
 
 	return dumpPath, name, nil

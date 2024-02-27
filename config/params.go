@@ -70,10 +70,11 @@ type Remote struct {
 }
 
 type Webhook struct {
-	Enabled     bool
-	OnlyOnError bool
-	Info        []string
-	Error       []string
+	Enabled          bool
+	OnlyOnError      bool
+	ServerIdentifier string
+	Info             []string
+	Error            []string
 }
 
 type EmailConfig struct {

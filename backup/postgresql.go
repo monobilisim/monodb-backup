@@ -42,6 +42,8 @@ func dumpPSQLDb(db string, dst string, params config.Params, logger Logger) (str
 	var dumpPath string
 	var format string
 	var cmd *exec.Cmd
+	var stderr bytes.Buffer
+	var stderr1 bytes.Buffer
 
 	name := dumpName(db, params.Rotation)
 
@@ -72,9 +74,10 @@ func dumpPSQLDb(db string, dst string, params config.Params, logger Logger) (str
 			dumpPath = dst + "/" + name
 			pgDumpArgs = append(pgDumpArgs, "-Fc", "-f", dumpPath)
 			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
+			cmd.Stderr = &stderr1
 			err := cmd.Run()
 			if err != nil {
-				logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
+				logger.Error("Couldn't back up " + db + " - Error: " + err.Error() + " - " + stderr1.String())
 				return "", "", err
 			}
 		} else if format == "7zip" {
@@ -86,15 +89,21 @@ func dumpPSQLDb(db string, dst string, params config.Params, logger Logger) (str
 				logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
 				return "", "", err
 			}
+			cmd.Stderr = &stderr1
 			err = cmd.Start()
 			if err != nil {
-				logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
+				logger.Error("Couldn't back up " + db + " - Error: " + err.Error() + " - " + stderr1.String())
 				return "", "", err
 			}
 			cmd2 := exec.Command("7z", "a", "-t7z", "-ms=on", "-si", dumpPath)
 			cmd2.Stdin = stdout
+			cmd2.Stderr = &stderr
 
 			err = cmd2.Run()
+			if err != nil {
+				logger.Error("Couldn't back up " + db + " - Error: " + err.Error() + " - " + stderr.String())
+				return "", "", err
+			}
 		}
 	} else {
 		if format == "gzip" {
@@ -107,15 +116,21 @@ func dumpPSQLDb(db string, dst string, params config.Params, logger Logger) (str
 				logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
 				return "", "", err
 			}
+			cmd.Stderr = &stderr1
 			err = cmd.Start()
 			if err != nil {
-				logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
+				logger.Error("Couldn't back up " + db + " - Error: " + err.Error() + " - " + stderr1.String())
 				return "", "", err
 			}
 			cmd2 := exec.Command("7z", "a", "-t7z", "-mx0", "-mhe=on", "-p"+params.ArchivePass, "-si", dumpPath)
 			cmd2.Stdin = stdout
+			cmd2.Stderr = &stderr
 
 			err = cmd2.Run()
+			if err != nil {
+				logger.Error("Couldn't back up " + db + err.Error() + " - " + stderr.String())
+				return "", "", err
+			}
 		} else if format == "7zip" {
 			name = name + ".sql.7z"
 			dumpPath = dst + "/" + name
@@ -125,15 +140,21 @@ func dumpPSQLDb(db string, dst string, params config.Params, logger Logger) (str
 				logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
 				return "", "", err
 			}
+			cmd.Stderr = &stderr1
 			err = cmd.Start()
 			if err != nil {
-				logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
+				logger.Error("Couldn't back up " + db + " - Error: " + err.Error() + " - " + stderr1.String())
 				return "", "", err
 			}
 			cmd2 := exec.Command("7z", "a", "-t7z", "-ms=on", "-mhe=on", "-p"+params.ArchivePass, "-si", dumpPath)
 			cmd2.Stdin = stdout
+			cmd2.Stderr = &stderr
 
 			err = cmd2.Run()
+			if err != nil {
+				logger.Error("Couldn't back up " + db + " - Error: " + err.Error() + " - " + stderr.String())
+				return "", "", err
+			}
 		}
 	}
 	logger.Info("Successfully backed up " + db + " at: " + dumpPath)

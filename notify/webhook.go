@@ -24,10 +24,19 @@ type Logger interface {
 
 var webhookStruct *config.Webhook
 var logger Logger
+var db string
 
-func InitializeWebhook(params *config.Webhook, loggerInfo Logger) {
+func InitializeWebhook(params *config.Webhook, loggerInfo Logger, database string) {
 	webhookStruct = params
 	logger = loggerInfo
+	switch database {
+	case "postgresql":
+		db = "PostgreSQL"
+	case "mysql":
+		db = "MySQL"
+	default:
+		db = "PostgreSQL"
+	}
 }
 
 func SendAlarm(message string, isError bool) {
@@ -35,11 +44,15 @@ func SendAlarm(message string, isError bool) {
 		return
 	}
 
+	identifier := "[ " + db + " - " + webhookStruct.ServerIdentifier + " ] "
+
 	if isError {
+		message = identifier + "[:red_circle:] " + message
 		for _, hook := range webhookStruct.Error {
 			sendAlarm(hook, message)
 		}
 	} else {
+		message = identifier + "[:info:] " + message
 		for _, hook := range webhookStruct.Info {
 			sendAlarm(hook, message)
 		}

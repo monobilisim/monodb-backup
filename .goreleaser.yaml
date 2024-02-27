@@ -12,6 +12,8 @@ builds:
       - linux
     goarch:
       - amd64
+    ldflags:
+      - -X main.Version={{ .Version }}
 archives:
   - format: binary
 checksum:

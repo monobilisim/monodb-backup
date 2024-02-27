@@ -64,6 +64,7 @@ notify:
   webhook:
     enabled: false
     onlyOnError: false
+    serverIdentifier: test-server
     info:
       - https://webhook_url.example1.com
       - https://webhook_url.example2.com
