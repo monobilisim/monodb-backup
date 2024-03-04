@@ -2,6 +2,7 @@ package backup
 
 import (
 	"bytes"
+	"errors"
 	"monodb-backup/config"
 	"os"
 	"os/exec"
@@ -79,11 +80,18 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 		logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
 		return "", "", err
 	}
+	stderr2, err := cmd.StderrPipe()
+	if err != nil {
+		logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
+		return "", "", err
+	}
+
 	err = cmd.Start()
 	if err != nil {
 		logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
 		return "", "", err
 	}
+	output := make([]byte, 100)
 
 	if !encrypted && format == "gzip" {
 		name = name + ".sql.gz"
@@ -118,6 +126,11 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 			logger.Error("Couldn't compress " + db + " - Error: " + err.Error())
 			return "", "", err
 		}
+		n, _ := stderr2.Read(output)
+		if n > 0 {
+			logger.Error("Couldn't back up " + db + " - Error: " + string(string(output[:n])))
+			return dumpPath, name, errors.New(string(output[:n]))
+		}
 	} else {
 		name = name + ".sql.7z"
 		dumpPath = dst + "/" + name
@@ -134,6 +147,11 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 		if err != nil {
 			logger.Error("Couldn't compress " + db + " - Error: " + err.Error() + " - " + stderr.String())
 			return "", "", err
+		}
+		n, _ := stderr2.Read(output)
+		if n > 0 {
+			logger.Error("Couldn't back up " + db + " - Error: " + string(string(output[:n])))
+			return dumpPath, name, errors.New(string(output[:n]))
 		}
 	}
 

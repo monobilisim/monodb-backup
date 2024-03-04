@@ -1,7 +1,6 @@
 package config
 
 import (
-	"flag"
 	"monodb-backup/log"
 	"os"
 
@@ -86,9 +85,8 @@ type EmailConfig struct {
 	To       string
 }
 
-func NewParams() (p *Params) {
-	filePath := flag.String("config", "/etc/monodb-backup.yml", "Path of the configuration file in YAML format")
-	flag.Parse()
+func NewParams(configFile *string) (p *Params) {
+	filePath := configFile
 
 	if _, err := os.Stat(*filePath); os.IsNotExist(err) {
 		log.Fatal("Configuration file: %s does not exist, %v\n", *filePath, err)
