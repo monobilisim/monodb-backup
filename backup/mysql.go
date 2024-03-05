@@ -43,6 +43,7 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 	var cmd *exec.Cmd
 	var cmd2 *exec.Cmd
 	var stderr bytes.Buffer
+	output := make([]byte, 100)
 
 	if encrypted {
 		format = "7zip"
@@ -91,7 +92,6 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 		logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
 		return "", "", err
 	}
-	output := make([]byte, 100)
 
 	if !encrypted && format == "gzip" {
 		name = name + ".sql.gz"
@@ -126,11 +126,6 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 			logger.Error("Couldn't compress " + db + " - Error: " + err.Error())
 			return "", "", err
 		}
-		n, _ := stderr2.Read(output)
-		if n > 0 {
-			logger.Error("Couldn't back up " + db + " - Error: " + string(string(output[:n])))
-			return dumpPath, name, errors.New(string(output[:n]))
-		}
 	} else {
 		name = name + ".sql.7z"
 		dumpPath = dst + "/" + name
@@ -148,12 +143,11 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 			logger.Error("Couldn't compress " + db + " - Error: " + err.Error() + " - " + stderr.String())
 			return "", "", err
 		}
-		n, _ := stderr2.Read(output)
-		if n > 0 {
-			logger.Error("Couldn't back up " + db + " - Error: " + string(string(output[:n])))
-			return dumpPath, name, errors.New(string(output[:n]))
-		}
 	}
-
+	n, _ := stderr2.Read(output)
+	if n > 0 {
+		logger.Error("Couldn't back up " + db + " - Error: " + string(string(output[:n])))
+		return dumpPath, name, errors.New(string(output[:n]))
+	}
 	return dumpPath, name, nil
 }

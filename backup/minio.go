@@ -72,7 +72,7 @@ func newMinioClient(endpoint, accessKey, secretKey string, secure, insecureSkipV
 	return &c, nil
 }
 
-func uploadFileToMinio(minioClient *MinioClient, rotation config.Rotation, db string, src string, bucketName string, dst string, minio_dst string) error {
+func uploadFileToMinio(minioClient *MinioClient, rotation config.Rotation, db string, src string, bucketName string, dst string, minioDst string) error {
 	src = strings.TrimSuffix(src, "/")
 	_, err := os.Open(src)
 	if err != nil {
@@ -93,9 +93,9 @@ func uploadFileToMinio(minioClient *MinioClient, rotation config.Rotation, db st
 			name = name + "." + extension[len(extension)-1]
 			dest := minio.CopyDestOptions{
 				Bucket: bucketName,
-				Object: minio_dst + "/" + name,
+				Object: minioDst + "/" + name,
 			}
-			_, err := minioClient.CopyObject(context.Background(), dest, source)
+			_, err := minioClient.ComposeObject(context.Background(), dest, source)
 			if err != nil {
 				return errors.New("Couldn't create copy for rotation. Error: " + err.Error())
 			}
