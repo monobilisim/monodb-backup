@@ -4,9 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"monodb-backup/backup"
+	"monodb-backup/clog"
 	"monodb-backup/config"
-	"monodb-backup/log"
-	"monodb-backup/notify"
 )
 
 var Version = "dev"
@@ -20,9 +19,13 @@ func main() {
 		return
 	}
 
-	p := config.NewParams(filePath)
-	l := log.NewLogger(p.Log)
-	d := backup.NewDumper(p, l)
-	notify.InitializeWebhook(&p.Notify.Webhook, l, p.Database)
-	d.Dump()
+	config.ParseParams(filePath)
+	clog.InitializeLogger()
+	if config.Parameters.Minio.Enabled {
+		backup.InitializeMinioClient()
+	}
+	if config.Parameters.S3.Enabled {
+		backup.InitializeS3Session()
+	}
+	backup.Backup()
 }

@@ -1,11 +1,12 @@
 package backup
 
 import (
+	"net"
+	"os"
+
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"net"
-	"os"
 )
 
 func SendSFTP(srcPath, dstPath, user, target, port string) error {

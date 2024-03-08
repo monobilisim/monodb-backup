@@ -3,13 +3,10 @@ package backup
 import (
 	"context"
 	"crypto/tls"
-	"errors"
-	"monodb-backup/config"
+	"monodb-backup/notify"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -24,66 +21,60 @@ type MinioClient struct {
 	InsecureSkipVerify bool
 }
 
-func rotate(db, rotation string) (bool, string) {
-	t := time.Now()
-	_, week := t.ISOWeek()
-	date := rightNow{
-		month: time.Now().Format("Jan"),
-		day:   time.Now().Format("Mon"),
-	}
-	switch rotation {
-	case "month":
-		yesterday := t.AddDate(0, 0, -1)
-		if yesterday.Month() != t.Month() {
-			return true, "Monthly/" + db + "-" + date.month
-		}
-	case "week":
-		if date.day == "Mon" {
-			return true, "Weekly/" + db + "-week_" + strconv.Itoa(week)
-		}
-	}
-	return false, ""
-}
+var mc *MinioClient
 
-func newMinioClient(endpoint, accessKey, secretKey string, secure, insecureSkipVerify bool) (*MinioClient, error) {
+func InitializeMinioClient() {
 	minioOptions := &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: secure,
+		Creds:  credentials.NewStaticV4(params.Minio.AccessKey, params.Minio.SecretKey, ""),
+		Secure: params.Minio.Secure,
 	}
-	if insecureSkipVerify {
+	if params.Minio.InsecureSkipVerify {
 		customTransport := http.DefaultTransport.(*http.Transport).Clone()
 		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		minioOptions.Transport = customTransport
 	}
-	minioClient, err := minio.New(endpoint, minioOptions)
+	minioClient, err := minio.New(params.Minio.Endpoint, minioOptions)
 	if err != nil {
-		return nil, err
+		notify.SendAlarm("Couldn't initialize a MinIO client. Error: "+err.Error(), true)
+		logger.Fatal(err)
+		return
 	}
 
-	c := MinioClient{
+	client := MinioClient{
 		Client:             minioClient,
-		Endpoint:           endpoint,
-		AccessKey:          accessKey,
-		SecretKey:          secretKey,
-		Secure:             secure,
-		InsecureSkipVerify: insecureSkipVerify,
+		Endpoint:           params.Minio.Endpoint,
+		AccessKey:          params.Minio.AccessKey,
+		SecretKey:          params.Minio.SecretKey,
+		Secure:             params.Minio.Secure,
+		InsecureSkipVerify: params.Minio.InsecureSkipVerify,
 	}
 
-	return &c, nil
+	mc = &client
+	return
 }
 
-func uploadFileToMinio(minioClient *MinioClient, rotation config.Rotation, db string, src string, bucketName string, dst string, minioDst string) error {
+func uploadFileToMinio(src, dst, db string) {
 	src = strings.TrimSuffix(src, "/")
-	_, err := os.Open(src)
+	bucketName := params.Minio.Bucket
+	file, err := os.Open(src)
 	if err != nil {
-		return err
+		logger.Error("Couldn't open file " + src + " to read - Error: " + err.Error())
+		notify.SendAlarm("Couldn't open file "+src+" to read - Error: "+err.Error(), true)
+		return
 	}
-	_, err = minioClient.FPutObject(context.Background(), bucketName, dst, src, minio.PutObjectOptions{})
+	defer file.Close()
+
+	_, err = mc.FPutObject(context.Background(), bucketName, dst, src, minio.PutObjectOptions{})
 	if err != nil {
-		return err
+		logger.Error("Couldn't upload file " + src + " to MinIO\nBucket: " + bucketName + " path: " + dst + "\n Error: " + err.Error())
+		notify.SendAlarm("Couldn't upload file "+src+" to MinIO\nBucket: "+bucketName+" path: "+dst+"\n Error: "+err.Error(), true)
+		return
 	}
-	if rotation.Enabled {
-		shouldRotate, name := rotate(db, rotation.Period)
+	logger.Info("Successfully uploaded file " + src + " to MinIO\nBucket: " + bucketName + " path: " + dst)
+	notify.SendAlarm("Successfully uploaded file "+src+" to MinIO\nBucket: "+bucketName+" path: "+dst, false)
+
+	if params.Rotation.Enabled {
+		shouldRotate, name := rotate(db)
 		if shouldRotate {
 			source := minio.CopySrcOptions{
 				Bucket: bucketName,
@@ -93,13 +84,17 @@ func uploadFileToMinio(minioClient *MinioClient, rotation config.Rotation, db st
 			name = name + "." + extension[len(extension)-1]
 			dest := minio.CopyDestOptions{
 				Bucket: bucketName,
-				Object: minioDst + "/" + name,
+				Object: params.Minio.Path + "/" + name,
 			}
-			_, err := minioClient.ComposeObject(context.Background(), dest, source)
+			_, err := mc.CopyObject(context.Background(), dest, source)
 			if err != nil {
-				return errors.New("Couldn't create copy for rotation. Error: " + err.Error())
+				logger.Error("Couldn't create copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name + "\n Error: " + err.Error())
+				notify.SendAlarm("Couldn't create copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name+"\n Error: "+err.Error(), true)
+				return
 			}
+			logger.Info("Successfully created a copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name)
+			notify.SendAlarm("Successfully created a copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name, false)
 		}
 	}
-	return nil
+	return
 }

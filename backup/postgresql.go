@@ -3,6 +3,7 @@ package backup
 import (
 	"bytes"
 	"monodb-backup/config"
+	"monodb-backup/notify"
 	"os"
 	"os/exec"
 	"strconv"
@@ -10,18 +11,18 @@ import (
 	"time"
 )
 
-func getPSQLList(params config.Remote, logger Logger) ([]string, error) {
+func getPSQLList() []string {
 	psqlArgs := []string{"-lqt"}
-	if params.IsRemote {
-		pglink := "postgresql://" + params.User + ":" + params.Password + "@" + params.Host + ":" + params.Port
+	if params.Remote.IsRemote {
+		pglink := "postgresql://" + params.Remote.User + ":" + params.Remote.Password + "@" + params.Remote.Host + ":" + params.Remote.Port
 		psqlArgs = append(psqlArgs, pglink)
 	}
 	cmd := exec.Command("/usr/bin/psql", psqlArgs...)
 	out, err := cmd.Output()
 	if err != nil {
-		logger.Error("Could not get database list: " + err.Error())
-		logger.Error("Command output: " + string(out))
-		return nil, err
+		notify.SendAlarm("Couldn't get the list of databases - Error: "+string(out), true)
+		logger.Fatal("Couldn't get the list of databases - Error: " + string(out))
+		return nil
 	}
 
 	var dbList []string
@@ -34,33 +35,41 @@ func getPSQLList(params config.Remote, logger Logger) ([]string, error) {
 			dbList = append(dbList, ln)
 		}
 	}
-	return dbList, nil
+	return dbList
 }
 
-func dumpPSQLDb(db string, dst string, params config.Params, logger Logger) (string, string, error) {
+func dumpPSQLDb(db string, dst string) (string, string, error) {
 	encrypted := params.ArchivePass != ""
 	var dumpPath string
 	var format string
 	var cmd *exec.Cmd
 	var stderr bytes.Buffer
 	var stderr1 bytes.Buffer
+	var remote config.Remote = params.Remote
 
 	name := dumpName(db, params.Rotation)
 
-	if params.Format != "" {
-		format = params.Format
+	if params.Format == "7zip" {
+		format = "7zip"
 	} else {
 		format = "gzip"
 	}
 	logger.Info("PostgreSQL backup started. DB: " + db + " - Compression algorithm: " + format + " - Encrypted: " + strconv.FormatBool(encrypted))
 
+	if params.Cluster.IsCluster {
+		remote = params.Cluster.Remote
+		remote.IsRemote = true
+	}
+
 	var pgDumpArgs []string
-	if params.Remote.IsRemote {
-		pglink := "postgresql://" + params.Remote.User + ":" + params.Remote.Password + "@" + params.Remote.Host + ":" + params.Remote.Port + "/" + db
+	if remote.IsRemote {
+		pglink := "postgresql://" + remote.User + ":" + remote.Password + "@" + remote.Host + ":" + remote.Port + "/" + db
 		pgDumpArgs = append(pgDumpArgs, pglink)
 	} else {
 		pgDumpArgs = append(pgDumpArgs, db)
 	}
+	logger.Debug(params)
+	logger.Debug(pgDumpArgs)
 
 	date := rightNow{
 		year:  time.Now().Format("2006"),

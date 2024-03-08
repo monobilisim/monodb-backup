@@ -3,24 +3,24 @@ package backup
 import (
 	"bytes"
 	"errors"
-	"monodb-backup/config"
+	"monodb-backup/notify"
 	"os"
 	"os/exec"
 	"strconv"
 	"time"
 )
 
-func getMySQLList(params config.Remote, logger Logger) ([]string, error) {
+func getMySQLList() []string {
 	mysqlArgs := []string{"-e SHOW DATABASES;"}
-	if params.IsRemote {
-		mysqlArgs = append(mysqlArgs, "-h"+params.Host, "--port="+params.Port, "-u"+params.User, "-p"+params.Password)
+	if params.Remote.IsRemote {
+		mysqlArgs = append(mysqlArgs, "-h"+params.Remote.Host, "--port="+params.Remote.Port, "-u"+params.Remote.User, "-p"+params.Remote.Password)
 	}
 	cmd := exec.Command("/usr/bin/mysql", mysqlArgs...)
 	out, err := cmd.Output()
 	if err != nil {
-		logger.Error("Could not get database list: " + err.Error())
-		logger.Error("Command output: " + string(out))
-		return nil, err
+		notify.SendAlarm("Couldn't get the list of databases - Error: "+string(out), true)
+		logger.Fatal("Couldn't get the list of databases - Error: " + string(out))
+		return nil
 	}
 
 	var dbList []string
@@ -33,10 +33,10 @@ func getMySQLList(params config.Remote, logger Logger) ([]string, error) {
 			dbList = append(dbList, ln)
 		}
 	}
-	return dbList, nil
+	return dbList
 }
 
-func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (string, string, error) {
+func dumpMySQLDb(db, dst string) (string, string, error) {
 	encrypted := params.ArchivePass != ""
 	var format string
 	var name string
@@ -47,8 +47,10 @@ func dumpMySQLDb(db string, dst string, params config.Params, logger Logger) (st
 
 	if encrypted {
 		format = "7zip"
+	} else if params.Format == "gzip" {
+		format = "gzip"
 	} else {
-		format = params.Format
+		format = "7zip"
 	}
 
 	logger.Info("MySQL backup started. DB: " + db + " - Compression algorithm: " + format + " - Encrypted: " + strconv.FormatBool(encrypted))
