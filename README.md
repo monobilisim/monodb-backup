@@ -13,7 +13,7 @@
 </a>
 
 <h2 align="center">monodb-backup</h2>
-<b>monodb-backup</b> is a tool for backing up PostgreSQL databases.
+<b>monodb-backup</b> is a tool for backing up MySQL and PostgreSQL databases.
 </div>
 
 ---
