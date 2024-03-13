@@ -34,18 +34,10 @@ type Params struct {
 		Path      string
 		AccessKey string
 		SecretKey string
+		//S3FS      S3FS
 	}
-	Minio struct {
-		Enabled            bool
-		Endpoint           string
-		Bucket             string
-		Path               string
-		AccessKey          string
-		SecretKey          string
-		Secure             bool
-		InsecureSkipVerify bool
-	}
-	SFTP struct {
+	Minio MinIO
+	SFTP  struct {
 		Enabled bool
 		User    string
 		Target  string
@@ -53,6 +45,25 @@ type Params struct {
 	}
 	Log  LoggerParams
 	Fqdn string
+}
+
+type MinIO struct {
+	Enabled            bool
+	Endpoint           string
+	Bucket             string
+	Path               string
+	AccessKey          string
+	SecretKey          string
+	Secure             bool
+	InsecureSkipVerify bool
+	S3FS               S3FS
+}
+
+type S3FS struct {
+	ShouldMount    bool
+	MountPath      string
+	PasswdFile     string
+	KeepPasswdFile bool
 }
 
 type Cluster struct {

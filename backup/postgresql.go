@@ -4,17 +4,20 @@ import (
 	"bytes"
 	"monodb-backup/config"
 	"monodb-backup/notify"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func getPSQLList() []string {
+	var remote config.Remote = params.Remote
+	if params.Cluster.IsCluster {
+		remote = params.Cluster.Remote
+		remote.IsRemote = true
+	}
 	psqlArgs := []string{"-lqt"}
 	if params.Remote.IsRemote {
-		pglink := "postgresql://" + params.Remote.User + ":" + params.Remote.Password + "@" + params.Remote.Host + ":" + params.Remote.Port
+		pglink := "postgresql://" + remote.User + ":" + remote.Password + "@" + remote.Host + ":" + remote.Port
 		psqlArgs = append(psqlArgs, pglink)
 	}
 	cmd := exec.Command("/usr/bin/psql", psqlArgs...)
@@ -68,14 +71,6 @@ func dumpPSQLDb(db string, dst string) (string, string, error) {
 	} else {
 		pgDumpArgs = append(pgDumpArgs, db)
 	}
-	logger.Debug(params)
-	logger.Debug(pgDumpArgs)
-
-	date := rightNow{
-		year:  time.Now().Format("2006"),
-		month: time.Now().Format("01"),
-	}
-	_ = os.MkdirAll(dst+"/"+date.year+"/"+date.month, os.ModePerm)
 
 	if !encrypted {
 		if format == "gzip" {

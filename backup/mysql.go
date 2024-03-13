@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"time"
 )
 
 func getMySQLList() []string {
@@ -61,10 +60,6 @@ func dumpMySQLDb(db, dst string) (string, string, error) {
 	} else {
 		mysqlArgs = append(mysqlArgs, "-u"+params.Remote.User, "-p"+params.Remote.Password)
 	}
-	date := rightNow{
-		year:  time.Now().Format("2006"),
-		month: time.Now().Format("01"),
-	}
 
 	mysqlArgs = append(mysqlArgs, "--single-transaction", "--quick", "--skip-lock-tables", "--routines", "--triggers", db)
 
@@ -75,7 +70,6 @@ func dumpMySQLDb(db, dst string) (string, string, error) {
 		name = dumpName(db, params.Rotation)
 	}
 	var dumpPath string
-	_ = os.MkdirAll(dst+"/"+date.year+"/"+date.month, os.ModePerm)
 
 	cmd = exec.Command("/usr/bin/mysqldump", mysqlArgs...)
 	stdout, err := cmd.StdoutPipe()

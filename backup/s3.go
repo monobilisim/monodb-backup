@@ -34,7 +34,6 @@ func InitializeS3Session() {
 		return
 	}
 	uploader = s3manager.NewUploader(sess)
-	return
 }
 
 func uploadFileToS3(src, dst, db string) {
@@ -66,7 +65,9 @@ func uploadFileToS3(src, dst, db string) {
 			name = params.S3.Path + "/" + name
 		}
 		extension := strings.Split(dst, ".")
-		name = name + "." + extension[len(extension)-1]
+		for i := 1; i < len(extension); i++ {
+			name = name + "." + extension[i]
+		}
 		if shouldRotate {
 			_, err := uploader.S3.CopyObject(&s3.CopyObjectInput{
 				Bucket:     aws.String(bucketName),
@@ -82,5 +83,4 @@ func uploadFileToS3(src, dst, db string) {
 			notify.SendAlarm("Successfully created a copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name, false)
 		}
 	}
-	return
 }

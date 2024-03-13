@@ -50,7 +50,6 @@ func InitializeMinioClient() {
 	}
 
 	mc = &client
-	return
 }
 
 func uploadFileToMinio(src, dst, db string) {
@@ -81,12 +80,17 @@ func uploadFileToMinio(src, dst, db string) {
 				Object: dst,
 			}
 			extension := strings.Split(dst, ".")
-			name = name + "." + extension[len(extension)-1]
+			for i := 1; i < len(extension); i++ {
+				name = name + "." + extension[i]
+			}
+			if params.Minio.Path != "" {
+				name = params.Minio.Path + "/" + name
+			}
 			dest := minio.CopyDestOptions{
 				Bucket: bucketName,
-				Object: params.Minio.Path + "/" + name,
+				Object: name,
 			}
-			_, err := mc.CopyObject(context.Background(), dest, source)
+			_, err := mc.ComposeObject(context.Background(), dest, source)
 			if err != nil {
 				logger.Error("Couldn't create copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name + "\n Error: " + err.Error())
 				notify.SendAlarm("Couldn't create copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name+"\n Error: "+err.Error(), true)
@@ -96,5 +100,4 @@ func uploadFileToMinio(src, dst, db string) {
 			notify.SendAlarm("Successfully created a copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name, false)
 		}
 	}
-	return
 }

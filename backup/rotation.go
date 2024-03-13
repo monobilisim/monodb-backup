@@ -62,14 +62,53 @@ func rotate(db string) (bool, string) {
 	return false, ""
 }
 
-func nameWithPath(db, name string) (newName string) {
+func rotatePath() string {
+	t := time.Now()
+	date := rightNow{
+		month: time.Now().Format("Jan"),
+		day:   time.Now().Format("Mon"),
+	}
+	switch config.Parameters.Rotation.Period {
+	case "month":
+		yesterday := t.AddDate(0, 0, -1)
+		if yesterday.Month() != t.Month() {
+			return "Monthly/"
+		}
+	case "week":
+		if date.day == "Mon" {
+			return "Weekly/"
+		}
+	}
+	return ""
+}
+
+func minioPath() (newName string) {
 	if !params.Rotation.Enabled {
 		date := rightNow{
 			year:  time.Now().Format("2006"),
 			month: time.Now().Format("01"),
 			now:   time.Now().Format("2006-01-02-150405"),
 		}
-		newName = date.year + "/" + date.month + "/" + db + "-" + date.now
+		newName = date.year + "/" + date.month
+	} else {
+		suffix := params.Rotation.Suffix
+		switch suffix {
+		case "day":
+			newName = "Daily/" + dateNow.day
+		case "hour":
+			newName = "Hourly/" + dateNow.day + "/" + dateNow.hour
+		case "minute":
+			newName = "Custom/" + dateNow.day + "/" + dateNow.hour
+		default:
+			newName = "Daily/" + dateNow.day
+		}
+	}
+	return
+}
+
+func nameWithPath(name string) (newName string) {
+	if !params.Rotation.Enabled {
+		newName = name
 	} else {
 		suffix := params.Rotation.Suffix
 		switch suffix {
