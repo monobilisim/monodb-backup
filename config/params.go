@@ -1,7 +1,7 @@
 package config
 
 import (
-	"monodb-backup/log"
+	"log"
 	"os"
 
 	"github.com/spf13/viper"
@@ -15,8 +15,9 @@ type Params struct {
 	Format            string // 7z, gz, default gz(pg_dump -Fc option - no further compression)
 	RemoveLocal       bool
 	ArchivePass       string
-	Remote            Remote
 	Rotation          Rotation
+	Remote            Remote
+	Cluster           Cluster
 	Notify            struct {
 		Email struct {
 			Enabled     bool
@@ -33,25 +34,41 @@ type Params struct {
 		Path      string
 		AccessKey string
 		SecretKey string
+		//S3FS      S3FS
 	}
-	Minio struct {
-		Enabled            bool
-		Endpoint           string
-		Bucket             string
-		Path               string
-		AccessKey          string
-		SecretKey          string
-		Secure             bool
-		InsecureSkipVerify bool
-	}
-	SFTP struct {
+	Minio MinIO
+	SFTP  struct {
 		Enabled bool
 		User    string
 		Target  string
 		Port    string
 	}
-	Log  *log.Params
+	Log  LoggerParams
 	Fqdn string
+}
+
+type MinIO struct {
+	Enabled            bool
+	Endpoint           string
+	Bucket             string
+	Path               string
+	AccessKey          string
+	SecretKey          string
+	Secure             bool
+	InsecureSkipVerify bool
+	S3FS               S3FS
+}
+
+type S3FS struct {
+	ShouldMount    bool
+	MountPath      string
+	PasswdFile     string
+	KeepPasswdFile bool
+}
+
+type Cluster struct {
+	IsCluster bool
+	Remote    Remote
 }
 
 type Rotation struct {
@@ -85,26 +102,39 @@ type EmailConfig struct {
 	To       string
 }
 
-func NewParams(configFile *string) (p *Params) {
+type LoggerParams struct {
+	Level      string
+	File       string
+	MaxSize    int
+	MaxBackups int
+	MaxAge     int
+}
+
+var Parameters Params
+
+func ParseParams(configFile *string) {
 	filePath := configFile
 
 	if _, err := os.Stat(*filePath); os.IsNotExist(err) {
-		log.Fatal("Configuration file: %s does not exist, %v\n", *filePath, err)
+		log.Fatalf("Configuration file: %s does not exist, %v\n", *filePath, err)
+		return
 	}
 
 	viper.SetConfigFile(*filePath)
 	viper.SetConfigType("yaml")
 
 	if err := viper.ReadInConfig(); err != nil {
-		log.Fatal("Error reading config file, %s\n", err)
+		log.Fatalf("Error reading config file, %v\n", err)
+		return
 	}
 
-	err := viper.Unmarshal(&p)
+	err := viper.Unmarshal(&Parameters)
 	if err != nil {
-		log.Fatal("Unable to decode into struct, %v\n", err)
+		log.Fatalf("Unable to decode config into struct, %v\n", err)
+		return
 	}
 
-	p.Fqdn, _ = os.Hostname()
+	Parameters.Fqdn, _ = os.Hostname()
 
 	return
 }

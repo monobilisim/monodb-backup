@@ -3,33 +3,15 @@ package notify
 import (
 	"bytes"
 	"encoding/json"
+	"monodb-backup/clog"
 	"monodb-backup/config"
 	"net/http"
 )
 
-type Logger interface {
-	Debug(args ...interface{})
-	Info(args ...interface{})
-	Warn(args ...interface{})
-	Error(args ...interface{})
-	Panic(args ...interface{})
-	Fatal(args ...interface{})
-	DebugWithFields(fields map[string]interface{}, args ...interface{})
-	InfoWithFields(fields map[string]interface{}, args ...interface{})
-	WarnWithFields(fields map[string]interface{}, args ...interface{})
-	ErrorWithFields(fields map[string]interface{}, args ...interface{})
-	PanicWithFields(fields map[string]interface{}, args ...interface{})
-	FatalWithFields(fields map[string]interface{}, args ...interface{})
-}
-
-var webhookStruct *config.Webhook
-var logger Logger
-var db string
-
-func InitializeWebhook(params *config.Webhook, loggerInfo Logger, database string) {
-	webhookStruct = params
-	logger = loggerInfo
-	switch database {
+var webhookStruct *config.Webhook = &config.Parameters.Notify.Webhook
+var logger *clog.CustomLogger = &clog.Logger
+var db string = func() (db string) {
+	switch config.Parameters.Database {
 	case "postgresql":
 		db = "PostgreSQL"
 	case "mysql":
@@ -37,9 +19,20 @@ func InitializeWebhook(params *config.Webhook, loggerInfo Logger, database strin
 	default:
 		db = "PostgreSQL"
 	}
-}
+	return db
+}()
 
 func SendAlarm(message string, isError bool) {
+	var subject string
+	if isError {
+		subject = "Error"
+	} else {
+		subject = "Success"
+	}
+	err := Email("Database Backup "+subject, message, isError)
+	if err != nil {
+		logger.Error("Couldn't send mail. Error: " + err.Error())
+	}
 	if !webhookStruct.Enabled || (webhookStruct.OnlyOnError && !isError) {
 		return
 	}
@@ -52,7 +45,7 @@ func SendAlarm(message string, isError bool) {
 			sendAlarm(hook, message)
 		}
 	} else {
-		message = identifier + "[:info:] " + message
+		message = identifier + "[:check:] " + message
 		for _, hook := range webhookStruct.Info {
 			sendAlarm(hook, message)
 		}
@@ -87,6 +80,4 @@ func sendAlarm(webhook, message string) {
 		logger.Error("Couldn't parse response from json\n" + err.Error())
 		return
 	}
-
-	return
 }

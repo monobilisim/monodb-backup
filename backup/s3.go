@@ -1,11 +1,11 @@
 package backup
 
 import (
-	"errors"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"monodb-backup/config"
+	"monodb-backup/notify"
 	"os"
 	"strings"
+
+	"github.com/aws/aws-sdk-go/service/s3"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -13,42 +13,61 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
-func newS3Uploader(region, accessKey, secretKey string) (*s3manager.Uploader, error) {
-	sess, err := session.NewSessionWithOptions(session.Options{
+var sess *session.Session
+var uploader *s3manager.Uploader
+
+func InitializeS3Session() {
+	var err error
+	endpoint := "play.min.io" //TODO delete later
+	sess, err = session.NewSessionWithOptions(session.Options{
 		Profile: "default",
 		Config: aws.Config{
-			Region:      aws.String(region),
-			Credentials: credentials.NewStaticCredentials(accessKey, secretKey, ""),
+			Endpoint:         &endpoint, //TODO delete later
+			Region:           aws.String(params.S3.Region),
+			Credentials:      credentials.NewStaticCredentials(params.S3.AccessKey, params.S3.SecretKey, ""),
+			S3ForcePathStyle: aws.Bool(true), //TODO delete later
 		},
 	})
 	if err != nil {
-		return nil, err
+		notify.SendAlarm("Couldn't initialize S3 session. Error: "+err.Error(), true)
+		logger.Fatal(err)
+		return
 	}
-	uploader := s3manager.NewUploader(sess)
-	return uploader, nil
+	uploader = s3manager.NewUploader(sess)
 }
 
-func uploadFileToS3(uploader *s3manager.Uploader, src string, bucketName string, dst string, rotation config.Rotation, db, path string) error {
+func uploadFileToS3(src, dst, db string) {
+	src = strings.TrimSuffix(src, "/")
+	bucketName := params.S3.Bucket
 	file, err := os.Open(src)
 	if err != nil {
-		return err
+		logger.Error("Couldn't open file " + src + " to read - Error: " + err.Error())
+		notify.SendAlarm("Couldn't open file "+src+" to read - Error: "+err.Error(), true)
+		return
 	}
 	defer file.Close()
+	logger.Info("Successfully opened file " + src + " to read.")
 	_, err = uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(dst),
 		Body:   file,
 	})
 	if err != nil {
-		return err
+		logger.Error("Couldn't upload file " + src + " to S3\nBucket: " + bucketName + " path: " + dst + "\n Error: " + err.Error())
+		notify.SendAlarm("Couldn't upload file "+src+" to S3\nBucket: "+bucketName+" path: "+dst+"\n Error: "+err.Error(), true)
+		return
 	}
-	if rotation.Enabled {
-		shouldRotate, name := rotate(db, rotation.Period)
-		if path != "" {
-			name = path + "/" + name
+	logger.Info("Successfully uploaded file " + src + " to S3\nBucket: " + bucketName + " path: " + dst)
+	notify.SendAlarm("Successfully uploaded file "+src+" to S3\nBucket: "+bucketName+" path: "+dst, false)
+	if params.Rotation.Enabled {
+		shouldRotate, name := rotate(db)
+		if params.S3.Path != "" {
+			name = params.S3.Path + "/" + name
 		}
 		extension := strings.Split(dst, ".")
-		name = name + "." + extension[len(extension)-1]
+		for i := 1; i < len(extension); i++ {
+			name = name + "." + extension[i]
+		}
 		if shouldRotate {
 			_, err := uploader.S3.CopyObject(&s3.CopyObjectInput{
 				Bucket:     aws.String(bucketName),
@@ -56,9 +75,12 @@ func uploadFileToS3(uploader *s3manager.Uploader, src string, bucketName string,
 				Key:        aws.String(name),
 			})
 			if err != nil {
-				return errors.New("Couldn't create copy for rotation. Error: " + err.Error())
+				logger.Error("Couldn't create copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name + "\n Error: " + err.Error())
+				notify.SendAlarm("Couldn't create copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name+"\n Error: "+err.Error(), true)
+				return
 			}
+			logger.Info("Successfully created a copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name)
+			notify.SendAlarm("Successfully created a copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name, false)
 		}
 	}
-	return nil
 }
