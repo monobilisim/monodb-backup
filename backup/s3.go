@@ -18,14 +18,11 @@ var uploader *s3manager.Uploader
 
 func InitializeS3Session() {
 	var err error
-	endpoint := "play.min.io" //TODO delete later
 	sess, err = session.NewSessionWithOptions(session.Options{
 		Profile: "default",
 		Config: aws.Config{
-			Endpoint:         &endpoint, //TODO delete later
-			Region:           aws.String(params.S3.Region),
-			Credentials:      credentials.NewStaticCredentials(params.S3.AccessKey, params.S3.SecretKey, ""),
-			S3ForcePathStyle: aws.Bool(true), //TODO delete later
+			Region:      aws.String(params.S3.Region),
+			Credentials: credentials.NewStaticCredentials(params.S3.AccessKey, params.S3.SecretKey, ""),
 		},
 	})
 	if err != nil {
