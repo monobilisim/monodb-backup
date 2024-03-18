@@ -17,7 +17,12 @@ func getPSQLList() []string {
 	}
 	psqlArgs := []string{"-lqt"}
 	if params.Remote.IsRemote {
-		pglink := "postgresql://" + remote.User + ":" + remote.Password + "@" + remote.Host + ":" + remote.Port
+		var pglink string
+		if remote.Port != "" {
+			pglink = "postgresql://" + remote.User + ":" + remote.Password + "@" + remote.Host + ":" + remote.Port + "/postgres"
+		} else {
+			pglink = "postgresql://" + remote.User + ":" + remote.Password + "@" + remote.Host + "/postgres"
+		}
 		psqlArgs = append(psqlArgs, pglink)
 	}
 	cmd := exec.Command("/usr/bin/psql", psqlArgs...)
@@ -66,7 +71,12 @@ func dumpPSQLDb(db string, dst string) (string, string, error) {
 
 	var pgDumpArgs []string
 	if remote.IsRemote {
-		pglink := "postgresql://" + remote.User + ":" + remote.Password + "@" + remote.Host + ":" + remote.Port + "/" + db
+		var pglink string
+		if remote.Port != "" {
+			pglink = "postgresql://" + remote.User + ":" + remote.Password + "@" + remote.Host + ":" + remote.Port + "/" + db
+		} else {
+			pglink = "postgresql://" + remote.User + ":" + remote.Password + "@" + remote.Host + "/" + db
+		}
 		pgDumpArgs = append(pgDumpArgs, pglink)
 	} else {
 		pgDumpArgs = append(pgDumpArgs, db)
