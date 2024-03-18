@@ -31,10 +31,11 @@ func mountMinIO(minio config.MinIO) {
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	if err != nil {
+		logger.Error("Couldn't mount " + minio.Bucket + " - Error: " + err.Error() + " - " + stderr.String())
 		if i <= 1 {
 			i++
-			notify.SendAlarm("Couldn't mount "+minio.Bucket+" It might still be mounted from a previous run. Trying to unmouth...", true)
-			logger.Error("Couldn't mount " + minio.Bucket + " It might still be mounted from a previous run. Trying to unmouth...")
+			notify.SendAlarm("Couldn't mount "+minio.Bucket+" - Error: "+err.Error()+" - "+stderr.String()+"It might still be mounted from a previous run. Trying to unmouth...", true)
+			logger.Error("It might still be mounted from a previous run. Trying to unmouth...")
 			umountMinIO(minio)
 			mountMinIO(minio)
 			notify.SendAlarm("Successfully mounted bucket: "+minio.Bucket+" at path: "+minio.S3FS.MountPath, false)
@@ -57,12 +58,12 @@ func umountMinIO(minio config.MinIO) {
 		}
 	}
 
-	cmd := exec.Command("umount", minio.S3FS.MountPath)
+	cmd := exec.Command("fusermount", "-u", minio.S3FS.MountPath)
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if err != nil {
 		notify.SendAlarm("Couldn't unmount "+minio.S3FS.MountPath+" - Error: "+err.Error()+" - "+stderr.String(), true)
-		logger.Fatal("Couldn't unmount " + minio.S3FS.MountPath + " - Error: " + err.Error() + " - " + stderr.String())
+		logger.Error("Couldn't unmount " + minio.S3FS.MountPath + " - Error: " + err.Error() + " - " + stderr.String())
 		return
 	}
 }
