@@ -20,10 +20,11 @@ type Params struct {
 	Cluster           Cluster
 	Notify            struct {
 		Email struct {
-			Enabled     bool
-			OnlyOnError bool
-			Info        EmailConfig
-			Error       EmailConfig
+			Enabled            bool
+			OnlyOnError        bool
+			InsecureSkipVerify bool
+			Info               EmailConfig
+			Error              EmailConfig
 		}
 		Webhook Webhook
 	}
@@ -39,9 +40,7 @@ type Params struct {
 	Minio MinIO
 	SFTP  struct {
 		Enabled bool
-		User    string
-		Target  string
-		Port    string
+		Targets []Target
 	}
 	Log  LoggerParams
 	Fqdn string
@@ -57,6 +56,13 @@ type MinIO struct {
 	Secure             bool
 	InsecureSkipVerify bool
 	S3FS               S3FS
+}
+
+type Target struct {
+	User string
+	Host string
+	Port string
+	Path string
 }
 
 type S3FS struct {

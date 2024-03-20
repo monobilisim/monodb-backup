@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 )
 
 func getMySQLList() []string {
@@ -142,8 +143,10 @@ func dumpMySQLDb(db, dst string) (string, string, error) {
 	}
 	n, _ := stderr2.Read(output)
 	if n > 0 {
-		logger.Error("Couldn't back up " + db + " - Error: " + string(string(output[:n])))
-		return dumpPath, name, errors.New(string(output[:n]))
+		if !strings.Contains(string(string(output[:n])), "[Warning] Using a password on the command line interface can be insecure.") {
+			logger.Error("Couldn't back up " + db + " - Error: " + string(string(output[:n])))
+			return dumpPath, name, errors.New(string(output[:n]))
+		}
 	}
 	return dumpPath, name, nil
 }

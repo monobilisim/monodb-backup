@@ -53,13 +53,20 @@ minio:
     keepPasswdFile: true
 sftp:
   enabled: false
-  user: username
-  target: ssh.example.com
-  port: 22
+  targets:
+    - user: username
+      host: ssh.example.com
+      path: /var/backups
+      port: 22
+    - user: username2
+      host: ssh.example2.com
+      path: /var/backups
+      port: 22
 notify:
   email:
     enabled: false
     onlyOnError: false
+    insecureSkipVerify: false
     info:
       smtpHost: smtp.gmail.com
       smtpPort: 587

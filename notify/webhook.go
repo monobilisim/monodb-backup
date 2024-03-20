@@ -10,19 +10,18 @@ import (
 
 var webhookStruct *config.Webhook = &config.Parameters.Notify.Webhook
 var logger *clog.CustomLogger = &clog.Logger
-var db string = func() (db string) {
-	switch config.Parameters.Database {
-	case "postgresql":
-		db = "PostgreSQL"
-	case "mysql":
-		db = "MySQL"
-	default:
-		db = "PostgreSQL"
-	}
-	return db
-}()
 
 func SendAlarm(message string, isError bool) {
+	var db string = func() string {
+		switch config.Parameters.Database {
+		case "postgresql":
+			return "PostgreSQL"
+		case "mysql":
+			return "MySQL"
+		default:
+			return "PostgreSQL"
+		}
+	}()
 	var subject string
 	if isError {
 		subject = "Error"
