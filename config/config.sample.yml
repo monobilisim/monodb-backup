@@ -62,6 +62,19 @@ sftp:
       host: ssh.example2.com
       path: /var/backups
       port: 22
+rsync:
+  enabled: false
+  targets:
+    - user: username
+      flags: "-a"
+      host: ssh.example.com
+      path: /var/backups
+      port: 22
+    - user: username2
+      flags: "-a"
+      host: ssh.example2.com
+      path: /var/backups
+      port: 22
 notify:
   email:
     enabled: false

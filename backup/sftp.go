@@ -5,7 +5,6 @@ import (
 	"monodb-backup/notify"
 	"net"
 	"os"
-	"os/user"
 	"strings"
 
 	"github.com/pkg/sftp"
@@ -16,18 +15,10 @@ import (
 func SendSFTP(srcPath, dstPath, db string, target config.Target) {
 	dstPath = target.Path + "/" + nameWithPath(dstPath)
 	logger.Info("SFTP transfer started.\n Source: " + srcPath + " - Destination: " + target.Host + ":" + dstPath)
-
-	currentUser, err := user.Current()
+	sock, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
 	if err != nil {
-		logger.Error("Couldn't get current user's id to get SSH socket" + err.Error())
-		notify.SendAlarm("Couldn't upload backup "+srcPath+" to "+target.Host+":"+dstPath+"\nCouldn't get current user's id to get SSH socket - Error: "+err.Error(), true)
-		return
-	}
-
-	sock, err := net.Dial("unix", "/run/user/"+currentUser.Uid+"/keyring/ssh")
-	if err != nil {
-		logger.Error("Couldn't connect to SSH socket - Error: " + err.Error())
-		notify.SendAlarm("Couldn't upload backup "+srcPath+" to "+target.Host+":"+dstPath+"\nCouldn't connect to SSH socket - Error: "+err.Error(), true)
+		logger.Error("Couldn't get environment variable SSH_AUTH_SOCK - Error: " + err.Error())
+		notify.SendAlarm("Couldn't upload backup "+srcPath+" to "+target.Host+":"+dstPath+"\nCouldn't get environment variable SSH_AUTH_SOCK - Error: "+err.Error(), true)
 		return
 	}
 

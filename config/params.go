@@ -42,6 +42,10 @@ type Params struct {
 		Enabled bool
 		Targets []Target
 	}
+	Rsync struct {
+		Enabled bool
+		Targets []Target
+	}
 	Log  LoggerParams
 	Fqdn string
 }
@@ -59,10 +63,11 @@ type MinIO struct {
 }
 
 type Target struct {
-	User string
-	Host string
-	Port string
-	Path string
+	User  string
+	Flags string
+	Host  string
+	Port  string
+	Path  string
 }
 
 type S3FS struct {
@@ -141,6 +146,4 @@ func ParseParams(configFile *string) {
 	}
 
 	Parameters.Fqdn, _ = os.Hostname()
-
-	return
 }

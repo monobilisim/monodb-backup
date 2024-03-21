@@ -150,6 +150,11 @@ func Backup() {
 						SendSFTP(filePath, name, db, target)
 					}
 				}
+				if params.Rsync.Enabled {
+					for _, target := range params.Rsync.Targets {
+						SendRsync(filePath, name, db, target)
+					}
+				}
 			}
 			if params.RemoveLocal {
 				err = os.Remove(filePath)
