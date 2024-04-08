@@ -4,6 +4,7 @@ go 1.22.0
 
 require (
 	github.com/aws/aws-sdk-go v1.50.35
+	github.com/go-sql-driver/mysql v1.8.1
 	github.com/minio/minio-go/v7 v7.0.69
 	github.com/pkg/sftp v1.13.6
 	github.com/sirupsen/logrus v1.9.3
@@ -14,6 +15,7 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect

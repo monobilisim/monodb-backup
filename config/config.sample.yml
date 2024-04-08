@@ -10,6 +10,7 @@ format: gzip
   # gzip or 7zip. gzip if empty
   # gzip for postgresql doesn't use gzip directly but uses custom format to take sql dump with the same algorithm as gzip
   # for mysql; if encryption is enabled, it will use 7zip even if the format is gzip
+backupAsTables: false # Backup MySQL databases as tables
 removeLocal: true
 archivePass: # Password for encrypting backups. No encryption if empty
 rotation:

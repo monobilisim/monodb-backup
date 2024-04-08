@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"monodb-backup/config"
 	"monodb-backup/notify"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -55,7 +57,7 @@ func dumpPSQLDb(db string, dst string) (string, string, error) {
 	var stderr1 bytes.Buffer
 	var remote config.Remote = params.Remote
 
-	name := dumpName(db, params.Rotation)
+	name := dumpName(db, params.Rotation, "")
 
 	if params.Format == "7zip" {
 		format = "7zip"
@@ -80,6 +82,10 @@ func dumpPSQLDb(db string, dst string) (string, string, error) {
 		pgDumpArgs = append(pgDumpArgs, pglink)
 	} else {
 		pgDumpArgs = append(pgDumpArgs, db)
+	}
+	if err := os.MkdirAll(filepath.Dir(dst+"/"+name), 0770); err != nil {
+		logger.Error("Couldn't create parent direectories at backup destination. Name: " + name + " - Error: " + err.Error())
+		return "", "", err
 	}
 
 	if !encrypted {

@@ -13,6 +13,7 @@ type Params struct {
 	Databases         []string
 	Exclude           []string
 	Format            string // 7z, gz, default gz(pg_dump -Fc option - no further compression)
+	BackupAsTables    bool
 	RemoveLocal       bool
 	ArchivePass       string
 	Rotation          Rotation

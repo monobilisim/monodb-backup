@@ -73,6 +73,20 @@ func uploadFileToMinio(src, dst, db string) {
 	notify.SendAlarm("Successfully uploaded file "+src+" to MinIO\nBucket: "+bucketName+" path: "+dst, false)
 
 	if params.Rotation.Enabled {
+		if params.BackupAsTables {
+			var dbWithTable string
+			path := strings.Split(dst, "/")
+			path = strings.Split(path[len(path)-1], "-")
+			if len(path)-1 > 0 {
+				for i := 0; i < len(path)-1; i++ {
+					dbWithTable += path[i]
+				}
+			} else {
+				dbWithTable += path[0]
+			}
+
+			db = dbWithTable
+		}
 		shouldRotate, name := rotate(db)
 		if shouldRotate {
 			source := minio.CopySrcOptions{
