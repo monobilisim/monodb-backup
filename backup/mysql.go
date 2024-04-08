@@ -2,12 +2,16 @@ package backup
 
 import (
 	"bytes"
+	"database/sql"
 	"errors"
 	"monodb-backup/notify"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 func getMySQLList() []string {
@@ -36,14 +40,150 @@ func getMySQLList() []string {
 	return dbList
 }
 
-func dumpMySQLDb(db, dst string) (string, string, error) {
+// func getTableList(db string) {
+// 	dblist := runCommand("-Ne SHOW TABLES FROM " + db)
+// 	fmt.Println(dblist)
+// 	dblist = runCommand("-Ne SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = " + db)
+// 	fmt.Println(dblist)
+
+// }
+
+//	func runCommand(arguement string) []string {
+//		mysqlArgs := []string{arguement}
+//		var stderr bytes.Buffer
+//		var stdout bytes.Buffer
+//		if params.Remote.IsRemote {
+//			mysqlArgs = append(mysqlArgs, "-h"+params.Remote.Host, "--port="+params.Remote.Port, "-u"+params.Remote.User, "-p"+params.Remote.Password)
+//		}
+//		cmd := exec.Command("/usr/bin/mysql", mysqlArgs...)
+//		cmd.Stderr = &stderr
+//		cmd.Stdout = &stdout
+//		err := cmd.Run()
+//		if err != nil {
+//			fmt.Println(cmd.String())
+//			notify.SendAlarm("Couldn't get the list of databases - Error: "+stdout.String()+"\n"+stderr.String()+"\n"+err.Error(), true)
+//			logger.Fatal("Couldn't get the list of databases - Error: " + stdout.String() + "\n" + stderr.String() + "\n" + err.Error())
+//			return make([]string, 0)
+//		}
+//		var dbList []string
+//		for _, line := range bytes.Split(stdout.Bytes(), []byte{'\n'}) {
+//			if len(line) > 0 {
+//				ln := string(line)
+//				dbList = append(dbList, ln)
+//			}
+//		}
+//		return dbList
+//	}
+func getTableList(dbName, path string) ([]string, string, error) {
+	dsn := params.Remote.User + ":" + params.Remote.Password + "@tcp(" + params.Remote.Host + ":" + params.Remote.Port + ")/"
+
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		logger.Error(err.Error())
+		return make([]string, 0), "", err
+	}
+	defer db.Close()
+
+	rows, err := db.Query("SHOW TABLES FROM " + dbName)
+	if err != nil {
+		logger.Error(err.Error())
+		return make([]string, 0), "", err
+	}
+	defer rows.Close()
+
+	var table string
+	var tableList []string
+	for rows.Next() {
+		if err := rows.Scan(&table); err != nil {
+			logger.Error(err.Error())
+			return make([]string, 0), "", err
+		}
+		tableList = append(tableList, table)
+	}
+
+	if err := rows.Err(); err != nil {
+		logger.Error(err.Error())
+		return make([]string, 0), "", err
+	}
+
+	newrows, err := db.Query("SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '" + dbName + "'")
+	if err != nil {
+		logger.Error(err.Error())
+		return make([]string, 0), "", err
+	}
+	defer newrows.Close()
+
+	var charSet, collationName string
+	for newrows.Next() {
+		if err := newrows.Scan(&charSet, &collationName); err != nil {
+			logger.Error(err.Error())
+			return make([]string, 0), "", err
+		}
+	}
+
+	if err := newrows.Err(); err != nil {
+		logger.Error(err.Error())
+		return make([]string, 0), "", err
+	}
+
+	filename := path + "/" + dbName + ".meta"
+
+	if err := os.WriteFile(filename, []byte(charSet+" "+collationName), 0666); err != nil {
+		logger.Error(err.Error())
+		return make([]string, 0), "", err
+	}
+
+	return tableList, filename, nil
+}
+
+func dumpDBWithTables(db, dst string) ([]string, []string, error) {
+	var dumpPaths []string
+	var names []string
+	if !params.Minio.S3FS.ShouldMount {
+		dst = dst + "/" + db
+	}
+	oldDst := dst
+	if !params.Rotation.Enabled && params.Minio.S3FS.ShouldMount {
+		dst = dst + "/" + minioPath() + "/" + db
+	}
+	if params.Rotation.Enabled {
+		dst = dst + "/" + db
+	}
+	if err := os.MkdirAll(dst, 0770); err != nil {
+		logger.Error("Couldn't create parent direectories at backup destination. dst: " + dst + " - Error: " + err.Error())
+		return make([]string, 0), make([]string, 0), err
+	}
+	tableList, metaFile, err := getTableList(db, dst)
+	if err != nil {
+		logger.Error("Couldn't get the list of tables. Error: " + err.Error())
+		return nil, nil, err
+	}
+	dumpPaths = append(dumpPaths, metaFile)
+	if !params.Minio.S3FS.ShouldMount {
+		names = append(names, filepath.Dir(dumpName(db, params.Rotation, ""))+"/"+db+".meta")
+	} else {
+		if params.Rotation.Enabled {
+			names = append(names, filepath.Dir(dumpName(db, params.Rotation, ""))+"/"+minioPath()+"/"+db+".meta")
+		} else {
+			names = append(names, filepath.Dir(dumpName(db, params.Rotation, ""))+"/"+db+".meta")
+		}
+	}
+	for _, table := range tableList {
+		filePath, name, err := dumpTable(db, table, oldDst+db) //TODO +
+		if err != nil {
+			logger.Error("Couldn't dump databases. Error: " + err.Error())
+			return nil, nil, err
+		}
+		dumpPaths = append(dumpPaths, filePath)
+		names = append(names, name)
+	}
+	return dumpPaths, names, nil
+}
+
+func dumpTable(db, table, dst string) (string, string, error) {
+	var name string
 	encrypted := params.ArchivePass != ""
 	var format string
-	var name string
-	var cmd *exec.Cmd
-	var cmd2 *exec.Cmd
-	var stderr bytes.Buffer
-	output := make([]byte, 100)
 
 	if encrypted {
 		format = "7zip"
@@ -62,16 +202,64 @@ func dumpMySQLDb(db, dst string) (string, string, error) {
 		mysqlArgs = append(mysqlArgs, "-u"+params.Remote.User, "-p"+params.Remote.Password)
 	}
 
-	mysqlArgs = append(mysqlArgs, "--single-transaction", "--quick", "--skip-lock-tables", "--routines", "--triggers", db)
+	mysqlArgs = append(mysqlArgs, "--single-transaction", "--quick", "--skip-lock-tables", "--routines", "--triggers", "--events", db, table)
+	name = dumpName(db, params.Rotation, db+"_"+table)
+	return mysqlDump(db, name, dst, encrypted, mysqlArgs)
+}
+
+func dumpMySQLDb(db, dst string) (string, string, error) {
+	var name string
+	encrypted := params.ArchivePass != ""
+	var format string
+
+	if encrypted {
+		format = "7zip"
+	} else if params.Format == "gzip" {
+		format = "gzip"
+	} else {
+		format = "7zip"
+	}
+
+	logger.Info("MySQL backup started. DB: " + db + " - Compression algorithm: " + format + " - Encrypted: " + strconv.FormatBool(encrypted))
+
+	var mysqlArgs []string
+	if params.Remote.IsRemote {
+		mysqlArgs = append(mysqlArgs, "-h"+params.Remote.Host, "--port="+params.Remote.Port, "-u"+params.Remote.User, "-p"+params.Remote.Password)
+	} else {
+		mysqlArgs = append(mysqlArgs, "-u"+params.Remote.User, "-p"+params.Remote.Password)
+	}
+
+	mysqlArgs = append(mysqlArgs, "--single-transaction", "--quick", "--skip-lock-tables", "--routines", "--triggers", "--events", db)
 
 	if db == "mysql" {
 		mysqlArgs = append(mysqlArgs, "user")
-		name = dumpName(db+"_users", params.Rotation)
+		name = dumpName(db+"_users", params.Rotation, "")
 	} else {
-		name = dumpName(db, params.Rotation)
+		name = dumpName(db, params.Rotation, "")
 	}
-	var dumpPath string
+	if err := os.MkdirAll(filepath.Dir(dst+"/"+name), 0770); err != nil {
+		logger.Error("Couldn't create parent direectories at backup destination. Name: " + name + " - Error: " + err.Error())
+		return "", "", err
+	}
+	return mysqlDump(db, name, dst, encrypted, mysqlArgs)
 
+}
+
+func mysqlDump(db, name, dst string, encrypted bool, mysqlArgs []string) (string, string, error) {
+	var cmd *exec.Cmd
+	var cmd2 *exec.Cmd
+	var stderr bytes.Buffer
+	var format string
+
+	if encrypted {
+		format = "7zip"
+	} else if params.Format == "gzip" {
+		format = "gzip"
+	} else {
+		format = "7zip"
+	}
+	output := make([]byte, 100)
+	var dumpPath string
 	cmd = exec.Command("/usr/bin/mysqldump", mysqlArgs...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

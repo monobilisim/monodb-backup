@@ -17,26 +17,63 @@ type rightNow struct {
 
 var dateNow rightNow
 
-func dumpName(db string, params config.Rotation) string {
-	if !params.Enabled {
+func dumpName(db string, rotation config.Rotation, buName string) string {
+	if !rotation.Enabled {
 		date := rightNow{
 			year:  time.Now().Format("2006"),
 			month: time.Now().Format("01"),
 			now:   time.Now().Format("2006-01-02-150405"),
 		}
-		name := date.year + "/" + date.month + "/" + db + "-" + date.now
+		var name string
+		if !params.BackupAsTables || db == "mysql_users" {
+			name = date.year + "/" + date.month + "/" + db + "-" + date.now
+		} else {
+			name = date.year + "/" + date.month + "/" + db + "/" + buName + "-" + date.now
+		}
 		return name
 	} else {
-		suffix := params.Suffix
-		switch suffix {
-		case "day":
-			return db + "-" + dateNow.day
-		case "hour":
-			return db + "-" + dateNow.hour
-		case "minute":
-			return db + "-" + dateNow.minute
-		default:
-			return db + "-" + dateNow.day
+		suffix := rotation.Suffix
+		if !params.BackupAsTables {
+			switch suffix {
+			case "day":
+				return db + "-" + dateNow.day
+			case "hour":
+				return db + "-" + dateNow.hour
+			case "minute":
+				return db + "-" + dateNow.minute
+			default:
+				return db + "-" + dateNow.day
+			}
+		} else if params.Minio.S3FS.ShouldMount {
+			if db == "mysql_users" {
+				db = "mysql"
+				buName = "mysql_users"
+			}
+			switch suffix { //TODO + db + "/" +
+			case "day":
+				return buName + "-" + dateNow.day
+			case "hour":
+				return buName + "-" + dateNow.hour
+			case "minute":
+				return buName + "-" + dateNow.minute
+			default:
+				return buName + "-" + dateNow.day
+			}
+		} else {
+			if db == "mysql_users" {
+				db = "mysql"
+				buName = "mysql_users"
+			}
+			switch suffix { //TODO + db + "/" +
+			case "day":
+				return db + "/" + buName + "-" + dateNow.day
+			case "hour":
+				return db + "/" + buName + "-" + dateNow.hour
+			case "minute":
+				return db + "/" + buName + "-" + dateNow.minute
+			default:
+				return db + "/" + buName + "-" + dateNow.day
+			}
 		}
 	}
 }
