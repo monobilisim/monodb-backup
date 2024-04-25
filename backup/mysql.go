@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"database/sql"
 	"errors"
-	"fmt"
 	"monodb-backup/notify"
 	"os"
 	"os/exec"
@@ -147,8 +146,6 @@ func dumpDBWithTables(db, dst string) ([]string, []string, error) {
 	} else {
 		dst = dst + "/" + db
 	}
-	fmt.Println("a --------- " + dst)
-	fmt.Println("a --------- " + oldDst)
 	if err := os.MkdirAll(dst, 0770); err != nil {
 		logger.Error("Couldn't create parent direectories at backup destination. dst: " + dst + " - Error: " + err.Error())
 		return make([]string, 0), make([]string, 0), err
