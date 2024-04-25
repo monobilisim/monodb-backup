@@ -19,6 +19,7 @@ type Params struct {
 	Rotation          Rotation
 	Remote            Remote
 	Cluster           Cluster
+	RunEveryCron      string
 	Notify            struct {
 		Email struct {
 			Enabled            bool

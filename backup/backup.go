@@ -26,7 +26,7 @@ func dumpDB(db string, dst string) (dumpPath string, name string, err error) {
 }
 
 func Backup() {
-	logger.Info("monodb-backup started.")
+	logger.Info("monodb-backup job started.")
 	notify.SendAlarm("Database backup started.", false)
 
 	dateNow = rightNow{
@@ -214,8 +214,8 @@ func Backup() {
 			}
 		}
 	}
-	logger.Info("monodb-backup finished.")
-	notify.SendAlarm("monodb-backup finished.", false)
+	logger.Info("monodb-backup job finished.")
+	notify.SendAlarm("monodb-backup job finished.", false)
 }
 
 func uploads(name, db, filePath string) {

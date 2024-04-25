@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/robfig/cron"
 	"monodb-backup/backup"
 	"monodb-backup/clog"
 	"monodb-backup/config"
@@ -21,11 +22,30 @@ func main() {
 
 	config.ParseParams(filePath)
 	clog.InitializeLogger()
+
+	var logger *clog.CustomLogger = &clog.Logger
+
+	logger.Info("monodb-backup started.")
+
+	if config.Parameters.RunEveryCron != "" {
+		c := cron.New()
+		c.AddFunc(config.Parameters.RunEveryCron, initBackup)
+		c.Start()
+		select {}
+	} else {
+		// backwards compatibility
+		initBackup()
+	}
+}
+
+func initBackup() {
 	if config.Parameters.Minio.Enabled {
 		backup.InitializeMinioClient()
 	}
+
 	if config.Parameters.S3.Enabled {
 		backup.InitializeS3Session()
 	}
+
 	backup.Backup()
 }
