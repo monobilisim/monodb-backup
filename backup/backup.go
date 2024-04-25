@@ -35,7 +35,6 @@ func Backup() {
 		minute: time.Now().Format("Mon-15_04"),
 		now:    time.Now().Format("2006-01-02-150405"),
 	}
-
 	if len(params.Databases) == 0 {
 		logger.Info("Getting database list...")
 		databases := getDBList()
@@ -172,28 +171,9 @@ func Backup() {
 				}
 			}
 		}
-
 	} else {
 		for _, db := range params.Databases {
-			if !params.BackupAsTables || db == "mysql" {
-				filePath, name, err := dumpDB(db, params.BackupDestination)
-				if err != nil {
-					notify.SendAlarm("Problem during backing up "+db+" - Error: "+err.Error(), true)
-				} else {
-					logger.Info("Successfully backed up database:" + db + " at " + filePath)
-					notify.SendAlarm("Successfully backed up "+db+" at "+filePath, false)
-
-					uploads(name, db, filePath)
-				}
-				if params.RemoveLocal {
-					err = os.Remove(filePath)
-					if err != nil {
-						logger.Error("Couldn't delete dump file at " + filePath + " - Error: " + err.Error())
-					} else {
-						logger.Info("Dump file at " + filePath + " successfully deleted.")
-					}
-				}
-			} else {
+			if params.BackupAsTables && db != "mysql" {
 				dumpPaths, names, err := dumpDBWithTables(db, params.BackupDestination)
 				if err != nil {
 					notify.SendAlarm("Problem during backing up "+db+" - Error: "+err.Error(), true)
@@ -211,6 +191,24 @@ func Backup() {
 						logger.Error("Couldn't delete dump file at " + params.BackupDestination + "/" + db + " - Error: " + err.Error())
 					} else {
 						logger.Info("Dump file at " + params.BackupDestination + "/" + db + " successfully deleted.")
+					}
+				}
+			} else {
+				filePath, name, err := dumpDB(db, params.BackupDestination)
+				if err != nil {
+					notify.SendAlarm("Problem during backing up "+db+" - Error: "+err.Error(), true)
+				} else {
+					logger.Info("Successfully backed up database:" + db + " at " + filePath)
+					notify.SendAlarm("Successfully backed up "+db+" at "+filePath, false)
+
+					uploads(name, db, filePath)
+				}
+				if params.RemoveLocal {
+					err = os.Remove(filePath)
+					if err != nil {
+						logger.Error("Couldn't delete dump file at " + filePath + " - Error: " + err.Error())
+					} else {
+						logger.Info("Dump file at " + filePath + " successfully deleted.")
 					}
 				}
 			}
@@ -244,8 +242,7 @@ func uploads(name, db, filePath string) {
 	}
 	if params.Rsync.Enabled {
 		for _, target := range params.Rsync.Targets {
-
-			SendRsync(filePath, name, db, target)
+			SendRsync(filePath, name, target)
 		}
 	}
 }

@@ -75,7 +75,7 @@ func SendSFTP(srcPath, dstPath, db string, target config.Target) {
 		}
 	}()
 
-	sendOverSFTp(srcPath, dstPath, src, target, sftpCli)
+	sendOverSFTP(srcPath, dstPath, src, target, sftpCli)
 
 	if params.Rotation.Enabled {
 		shouldRotate, newDst := rotate(db)
@@ -85,13 +85,13 @@ func SendSFTP(srcPath, dstPath, db string, target config.Target) {
 				newDst = newDst + "." + extension[i]
 			}
 			newDst = target.Path + "/" + newDst
-			sendOverSFTp(srcPath, newDst, src, target, sftpCli)
+			sendOverSFTP(srcPath, newDst, src, target, sftpCli)
 		}
 	}
 
 }
 
-func sendOverSFTp(srcPath, dstPath string, src *os.File, target config.Target, sftpCli *sftp.Client) {
+func sendOverSFTP(srcPath, dstPath string, src *os.File, target config.Target, sftpCli *sftp.Client) {
 	fullPath := strings.Split(dstPath, "/")
 	newPath := "/"
 	for i := 0; i < len(fullPath)-1; i++ {

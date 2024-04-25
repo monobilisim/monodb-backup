@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"errors"
+	"fmt"
 	"monodb-backup/notify"
 	"os"
 	"os/exec"
@@ -137,18 +138,17 @@ func getTableList(dbName, path string) ([]string, string, error) {
 }
 
 func dumpDBWithTables(db, dst string) ([]string, []string, error) {
-	var dumpPaths []string
-	var names []string
-	if !params.Minio.S3FS.ShouldMount {
-		dst = dst + "/" + db
-	}
+	var dumpPaths, names []string
 	oldDst := dst
-	if !params.Rotation.Enabled && params.Minio.S3FS.ShouldMount {
-		dst = dst + "/" + minioPath() + "/" + db
-	}
 	if params.Rotation.Enabled {
 		dst = dst + "/" + db
+	} else if params.Minio.S3FS.ShouldMount {
+		dst = dst + "/" + minioPath() + "/" + db
+	} else {
+		dst = dst + "/" + db
 	}
+	fmt.Println("a --------- " + dst)
+	fmt.Println("a --------- " + oldDst)
 	if err := os.MkdirAll(dst, 0770); err != nil {
 		logger.Error("Couldn't create parent direectories at backup destination. dst: " + dst + " - Error: " + err.Error())
 		return make([]string, 0), make([]string, 0), err
@@ -169,7 +169,7 @@ func dumpDBWithTables(db, dst string) ([]string, []string, error) {
 		}
 	}
 	for _, table := range tableList {
-		filePath, name, err := dumpTable(db, table, oldDst+db) //TODO +
+		filePath, name, err := dumpTable(db, table, oldDst+"/"+db) //TODO +
 		if err != nil {
 			logger.Error("Couldn't dump databases. Error: " + err.Error())
 			return nil, nil, err
