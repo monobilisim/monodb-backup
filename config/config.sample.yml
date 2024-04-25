@@ -1,5 +1,6 @@
 backupDestination: /var/backups
 database: postgresql # or mysql - default is postgresql
+runEveryCron: "@every 1m" # run every minute
 databases: # all databases if empty
   - db1
   - db2
