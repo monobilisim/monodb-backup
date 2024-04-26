@@ -287,6 +287,11 @@ func mysqlDump(db, name, dst string, encrypted bool, mysqlArgs []string) (string
 		cmd2 = exec.Command("gzip")
 		cmd2.Stdin = stdout
 
+		if err := os.MkdirAll(filepath.Dir(dumpPath), 0770); err != nil {
+			logger.Error("Couldn't create parent direectories at backup destination. dst: " + dst + " - Error: " + err.Error())
+			return "", "", err
+		}
+
 		f, err := os.Create(dumpPath)
 		if err != nil {
 			logger.Error("Couldn't back up " + db + " - Error: " + err.Error())

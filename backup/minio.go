@@ -6,6 +6,7 @@ import (
 	"monodb-backup/notify"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/minio/minio-go/v7"
@@ -73,6 +74,7 @@ func uploadFileToMinio(src, dst, db string) {
 	notify.SendAlarm("Successfully uploaded file "+src+" to MinIO\nBucket: "+bucketName+" path: "+dst, false)
 
 	if params.Rotation.Enabled {
+		var oldDB string
 		if params.BackupAsTables {
 			var dbWithTable string
 			path := strings.Split(dst, "/")
@@ -84,11 +86,14 @@ func uploadFileToMinio(src, dst, db string) {
 			} else {
 				dbWithTable += path[0]
 			}
-
+			oldDB = db
 			db = dbWithTable
 		}
 		shouldRotate, name := rotate(db)
 		if shouldRotate {
+			if params.BackupAsTables {
+				name = filepath.Dir(name) + "/" + oldDB + "/" + filepath.Base(name)
+			}
 			source := minio.CopySrcOptions{
 				Bucket: bucketName,
 				Object: dst,
