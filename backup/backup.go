@@ -3,6 +3,7 @@ package backup
 import (
 	"monodb-backup/notify"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -103,11 +104,8 @@ func Backup() {
 								logger.Fatal("Couldn't create folder in MinIO at path: " + dst + " - Error: " + err.Error())
 								return
 							}
-							extension := strings.Split(fileName, ".")
-							for i := 1; i < len(extension); i++ {
-								name = name + "." + extension[i]
-							}
-							name = newDst + "/" + name
+							extension := getFileExtension(fileName)
+							name = newDst + "/" + name + extension
 							_, err = copyFile(filePath, name)
 							if err != nil {
 								logger.Error("Couldn't create a copy of " + filePath + " for rotation\npath: " + name + "\n Error: " + err.Error())
@@ -138,7 +136,12 @@ func Backup() {
 						notify.SendAlarm("Successfully backed up "+db+" at "+filePath, false)
 
 						if params.Rotation.Enabled {
-							shouldRotate, name := rotate(db)
+							name := filepath.Base(fileName)
+							extension := getFileExtension(fileName)
+							shouldRotate, name := rotate(strings.TrimSuffix(name, extension))
+							newPath := filepath.Dir(name)
+							baseName := filepath.Base(name)
+							name = newPath + "/" + db + "/" + baseName
 							if shouldRotate {
 								var newDst string
 								if params.Minio.Path != "" {
@@ -146,17 +149,13 @@ func Backup() {
 								}
 								newDst = params.Minio.S3FS.MountPath + "/" + newDst
 								newDst = strings.TrimSuffix(newDst, "/")
-								err := os.MkdirAll(strings.TrimSuffix(newDst, "/")+"/"+rotatePath(), os.FileMode(0750))
+								err := os.MkdirAll(strings.TrimSuffix(newDst, "/")+"/"+rotatePath()+"/"+db, os.FileMode(0750))
 								if err != nil {
 									notify.SendAlarm("Couldn't create folder in MinIO at path: "+dst+" - Error: "+err.Error(), true)
 									logger.Fatal("Couldn't create folder in MinIO at path: " + dst + " - Error: " + err.Error())
 									return
 								}
-								extension := strings.Split(fileName, ".")
-								for i := 1; i < len(extension); i++ {
-									name = name + "." + extension[i]
-								}
-								name = newDst + "/" + name
+								name = newDst + "/" + name + extension
 								_, err = copyFile(filePath, name)
 								if err != nil {
 									logger.Error("Couldn't create a copy of " + filePath + " for rotation\npath: " + name + "\n Error: " + err.Error())
@@ -178,11 +177,11 @@ func Backup() {
 				if err != nil {
 					notify.SendAlarm("Problem during backing up "+db+" - Error: "+err.Error(), true)
 				} else {
-					logger.Info("Successfully backed up database:" + db + " with it's tables seperately, at " + params.BackupDestination + "/" + db)
+					logger.Info("Successfully backed up database:" + db + " with its tables separately, at " + params.BackupDestination + "/" + db)
 					notify.SendAlarm("Successfully backed up "+db+" at "+params.BackupDestination+"/"+db, false)
 					for i, filePath := range dumpPaths {
 						name := names[i]
-						uploads(name, db, filePath)
+						upload(name, db, filePath)
 					}
 				}
 				if params.RemoveLocal {
@@ -201,7 +200,7 @@ func Backup() {
 					logger.Info("Successfully backed up database:" + db + " at " + filePath)
 					notify.SendAlarm("Successfully backed up "+db+" at "+filePath, false)
 
-					uploads(name, db, filePath)
+					upload(name, db, filePath)
 				}
 				if params.RemoveLocal {
 					err = os.Remove(filePath)
@@ -218,7 +217,7 @@ func Backup() {
 	notify.SendAlarm("monodb-backup job finished.", false)
 }
 
-func uploads(name, db, filePath string) {
+func upload(name, db, filePath string) {
 	if params.S3.Enabled {
 		target := nameWithPath(name)
 		if params.S3.Path != "" {

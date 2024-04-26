@@ -93,12 +93,9 @@ func uploadFileToMinio(src, dst, db string) {
 				Bucket: bucketName,
 				Object: dst,
 			}
-			extension := strings.Split(dst, ".")
-			for i := 1; i < len(extension); i++ {
-				name = name + "." + extension[i]
-			}
+			extension := getFileExtension(dst)
 			if params.Minio.Path != "" {
-				name = params.Minio.Path + "/" + name
+				name = params.Minio.Path + "/" + name + extension
 			}
 			dest := minio.CopyDestOptions{
 				Bucket: bucketName,

@@ -166,7 +166,10 @@ func dumpDBWithTables(db, dst string) ([]string, []string, error) {
 		}
 	}
 	for _, table := range tableList {
-		filePath, name, err := dumpTable(db, table, oldDst+"/"+db) //TODO +
+		if db == "mysql" && table != "user" {
+			continue
+		}
+		filePath, name, err := dumpTable(db, table, oldDst) //TODO +
 		if err != nil {
 			logger.Error("Couldn't dump databases. Error: " + err.Error())
 			return nil, nil, err
@@ -181,6 +184,9 @@ func dumpTable(db, table, dst string) (string, string, error) {
 	var name string
 	encrypted := params.ArchivePass != ""
 	var format string
+	if !(!params.Rotation.Enabled && params.Minio.S3FS.ShouldMount) {
+		dst += "/" + db
+	}
 
 	if encrypted {
 		format = "7zip"

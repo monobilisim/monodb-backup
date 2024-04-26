@@ -6,6 +6,8 @@ import (
 	"monodb-backup/clog"
 	"monodb-backup/config"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 var logger *clog.CustomLogger = &clog.Logger
@@ -34,4 +36,11 @@ func copyFile(src, dst string) (int64, error) {
 	defer destination.Close()
 	nBytes, err := io.Copy(destination, source)
 	return nBytes, err
+}
+
+func getFileExtension(path string) string {
+	fileExt1 := filepath.Ext(path)
+	path = strings.TrimSuffix(path, fileExt1)
+	fileExt2 := filepath.Ext(path)
+	return fileExt2 + fileExt1
 }
