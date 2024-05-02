@@ -18,6 +18,8 @@ func getPSQLList() []string {
 		remote.IsRemote = true
 	}
 	psqlArgs := []string{"-lqt"}
+	var stderr bytes.Buffer
+
 	if params.Remote.IsRemote {
 		var pglink string
 		if remote.Port != "" {
@@ -28,10 +30,11 @@ func getPSQLList() []string {
 		psqlArgs = append(psqlArgs, pglink)
 	}
 	cmd := exec.Command("/usr/bin/psql", psqlArgs...)
+	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
 		notify.SendAlarm("Couldn't get the list of databases - Error: "+string(out), true)
-		logger.Fatal("Couldn't get the list of databases - Error: " + string(out))
+		logger.Fatal("Couldn't get the list of databases - Error: " + string(out) + "\nError: " + stderr.String())
 		return nil
 	}
 
@@ -84,7 +87,7 @@ func dumpPSQLDb(db string, dst string) (string, string, error) {
 		pgDumpArgs = append(pgDumpArgs, db)
 	}
 	if err := os.MkdirAll(filepath.Dir(dst+"/"+name), 0770); err != nil {
-		logger.Error("Couldn't create parent direectories at backup destination. Name: " + name + " - Error: " + err.Error())
+		logger.Error("Couldn't create parent directories at backup destination. Name: " + name + " - Error: " + err.Error())
 		return "", "", err
 	}
 
