@@ -241,7 +241,7 @@ func dumpMySQLDb(db, dst string) (string, string, error) {
 		name = dumpName(db, params.Rotation, "")
 	}
 	if err := os.MkdirAll(filepath.Dir(dst+"/"+name), 0770); err != nil {
-		logger.Error("Couldn't create parent direectories at backup destination. Name: " + name + " - Error: " + err.Error())
+		logger.Error("Couldn't create parent directories at backup destination. Name: " + name + " - Error: " + err.Error())
 		return "", "", err
 	}
 	return mysqlDump(db, name, dst, encrypted, mysqlArgs)
