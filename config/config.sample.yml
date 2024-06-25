@@ -24,59 +24,48 @@ remote:
   port: 5432
   user: postgres        # necessary for mysql, even if isRemote false
   password: password    # necessary for mysql, even if isRemote false
-cluster:
-  isCluster: false
-  remote:
-    isRemote: true 
-    host: 127.0.0.1
-    port: 5003
-    user: postgres        
-    password: password
-s3:
-  enabled: false
-  region: aws region
-  bucket: s3 bucket
-  path: backup path
-  accessKey: s3 access key
-  secretKey: s3 secret key
-minio:
-  enabled: false
-  endpoint: minio endpoint
-  bucket: minio bucket
-  path: backup path
-  accessKey: minio access key
-  secretKey: minio secret key
-  secure: false
-  insecureSkipVerify: false
-  s3fs:
-    shouldMount: false
-    mountPath: /mnt/s3
-    passwdFile: /etc/passwd.txt
-    keepPasswdFile: true
-sftp:
-  enabled: false
-  targets:
-    - user: username
-      host: ssh.example.com
-      path: /var/backups
-      port: 22
-    - user: username2
-      host: ssh.example2.com
-      path: /var/backups
-      port: 22
-rsync:
-  enabled: false
-  targets:
-    - user: username
-      flags: "-a"
-      host: ssh.example.com
-      path: /var/backups
-      port: 22
-    - user: username2
-      flags: "-a"
-      host: ssh.example2.com
-      path: /var/backups
-      port: 22
+backupType:
+  type: minio
+  info:
+    - endpoint: minio endpoint
+      region: minio region
+      bucket: minio bucket
+      path: backup path
+      accessKey: minio access key
+      secretKey: minio secret key
+      secure: false
+      insecureSkipVerify: false
+  # type: s3
+  # info:
+  #   - region: aws region
+  #     bucket: s3 bucket
+  #     path: backup path
+  #     accessKey: s3 access key
+  #     secretKey: s3 secret key
+  # type: sftp
+  # info:
+  #   - targets:
+  #       - user: username
+  #         host: ssh.example.com
+  #         path: /var/backups
+  #         port: 22
+  #       - user: username2
+  #         host: ssh.example2.com
+  #         path: /var/backups
+  #         port: 22
+  # type: rsync
+  # info:
+  #   - targets:
+  #       - user: username
+  #         flags: "-a"
+  #         host: ssh.example.com
+  #         path: /var/backups
+  #         port: 22
+  #       - user: username2
+  #         flags: "-a"
+  #         host: ssh.example2.com
+  #         path: /var/backups
+  #         port: 22
 notify:
   email:
     enabled: false

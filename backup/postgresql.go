@@ -2,6 +2,7 @@ package backup
 
 import (
 	"bytes"
+	"io"
 	"monodb-backup/config"
 	"monodb-backup/notify"
 	"os"
@@ -13,10 +14,6 @@ import (
 
 func getPSQLList() []string {
 	var remote config.Remote = params.Remote
-	if params.Cluster.IsCluster {
-		remote = params.Cluster.Remote
-		remote.IsRemote = true
-	}
 	psqlArgs := []string{"-lqt"}
 	var stderr bytes.Buffer
 
@@ -51,6 +48,42 @@ func getPSQLList() []string {
 	return dbList
 }
 
+func dumpAndUploadPSQL(db string, pipeWriters []*io.PipeWriter) error {
+	var cmd *exec.Cmd
+	var stderr bytes.Buffer
+	var remote config.Remote = params.Remote
+	var writers []io.Writer
+	for _, pw := range pipeWriters {
+		writers = append(writers, pw)
+	}
+
+	var pgDumpArgs []string
+	if remote.IsRemote {
+		var pglink string
+		if remote.Port != "" {
+			pglink = "postgresql://" + remote.User + ":" + remote.Password + "@" + remote.Host + ":" + remote.Port + "/" + db
+		} else {
+			pglink = "postgresql://" + remote.User + ":" + remote.Password + "@" + remote.Host + "/" + db
+		}
+		pgDumpArgs = append(pgDumpArgs, pglink)
+	} else {
+		pgDumpArgs = append(pgDumpArgs, db)
+	}
+
+	pgDumpArgs = append(pgDumpArgs, "-Fc")
+
+	cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
+	// cmd.Stdout = pipeWriter
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = io.MultiWriter(writers...)
+	err := cmd.Run()
+	if err != nil {
+		logger.Error("Couldn't back up " + db + " - Error: " + err.Error() + " - " + stderr.String())
+		return err
+	}
+	return nil
+}
+
 func dumpPSQLDb(db string, dst string) (string, string, error) {
 	encrypted := params.ArchivePass != ""
 	var dumpPath string
@@ -68,11 +101,6 @@ func dumpPSQLDb(db string, dst string) (string, string, error) {
 		format = "gzip"
 	}
 	logger.Info("PostgreSQL backup started. DB: " + db + " - Compression algorithm: " + format + " - Encrypted: " + strconv.FormatBool(encrypted))
-
-	if params.Cluster.IsCluster {
-		remote = params.Cluster.Remote
-		remote.IsRemote = true
-	}
 
 	var pgDumpArgs []string
 	if remote.IsRemote {
@@ -92,41 +120,15 @@ func dumpPSQLDb(db string, dst string) (string, string, error) {
 	}
 
 	if !encrypted {
-		if format == "gzip" {
-			name = name + ".dump"
-			dumpPath = dst + "/" + name
-			pgDumpArgs = append(pgDumpArgs, "-Fc", "-f", dumpPath)
-			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
-			cmd.Stderr = &stderr1
-			err := cmd.Run()
-			if err != nil {
-				logger.Error("Couldn't back up " + db + " - Error: " + err.Error() + " - " + stderr1.String())
-				return "", "", err
-			}
-		} else if format == "7zip" {
-			name = name + ".sql.7z"
-			dumpPath = dst + "/" + name
-			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
-			stdout, err := cmd.StdoutPipe()
-			if err != nil {
-				logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
-				return "", "", err
-			}
-			cmd.Stderr = &stderr1
-			err = cmd.Start()
-			if err != nil {
-				logger.Error("Couldn't back up " + db + " - Error: " + err.Error() + " - " + stderr1.String())
-				return "", "", err
-			}
-			cmd2 := exec.Command("7z", "a", "-t7z", "-ms=on", "-si", dumpPath)
-			cmd2.Stdin = stdout
-			cmd2.Stderr = &stderr
-
-			err = cmd2.Run()
-			if err != nil {
-				logger.Error("Couldn't back up " + db + " - Error: " + err.Error() + " - " + stderr.String())
-				return "", "", err
-			}
+		name = name + ".dump"
+		dumpPath = dst + "/" + name
+		pgDumpArgs = append(pgDumpArgs, "-Fc", "-f", dumpPath)
+		cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)
+		cmd.Stderr = &stderr1
+		err := cmd.Run()
+		if err != nil {
+			logger.Error("Couldn't back up " + db + " - Error: " + err.Error() + " - " + stderr1.String())
+			return "", "", err
 		}
 	} else {
 		if format == "gzip" {

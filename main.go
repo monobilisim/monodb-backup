@@ -3,17 +3,26 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/robfig/cron"
 	"monodb-backup/backup"
 	"monodb-backup/clog"
 	"monodb-backup/config"
+	"monodb-backup/notify"
+	"runtime"
+
+	"github.com/robfig/cron"
 )
 
 var Version = "dev"
 
 func main() {
+	var configPath string
+	if runtime.GOOS == "windows" {
+		configPath = "C:\\ProgramData\\monodb-backup\\monodb-backup.yml"
+	} else {
+		configPath = "/etc/monodb-backup.yml"
+	}
 	printVersion := flag.Bool("version", false, "Prints version")
-	filePath := flag.String("config", "/etc/monodb-backup.yml", "Path of the configuration file in YAML format")
+	filePath := flag.String("config", configPath, "Path of the configuration file in YAML format")
 	flag.Parse()
 	if *printVersion {
 		fmt.Println("monodb-backup " + Version)
@@ -24,6 +33,10 @@ func main() {
 	clog.InitializeLogger()
 
 	var logger *clog.CustomLogger = &clog.Logger
+
+	if config.Parameters.Database == "mssql" {
+		backup.InitializeMSSQL()
+	}
 
 	logger.Info("monodb-backup started.")
 
@@ -36,16 +49,13 @@ func main() {
 		// backwards compatibility
 		initBackup()
 	}
+	logger.Info("monodb-backup job finished.")
+	notify.SendAlarm("monodb-backup job finished.", false)
 }
 
 func initBackup() {
-	if config.Parameters.Minio.Enabled {
-		backup.InitializeMinioClient()
-	}
-
-	if config.Parameters.S3.Enabled {
+	if config.Parameters.BackupType.Type == "minio" || config.Parameters.BackupType.Type == "s3" {
 		backup.InitializeS3Session()
 	}
-
 	backup.Backup()
 }

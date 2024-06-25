@@ -18,8 +18,8 @@ type Params struct {
 	ArchivePass       string
 	Rotation          Rotation
 	Remote            Remote
-	Cluster           Cluster
 	RunEveryCron      string
+	BackupType        BackupType
 	Notify            struct {
 		Email struct {
 			Enabled            bool
@@ -30,38 +30,25 @@ type Params struct {
 		}
 		Webhook Webhook
 	}
-	S3 struct {
-		Enabled   bool
-		Region    string
-		Bucket    string
-		Path      string
-		AccessKey string
-		SecretKey string
-		//S3FS      S3FS
-	}
-	Minio MinIO
-	SFTP  struct {
-		Enabled bool
-		Targets []Target
-	}
-	Rsync struct {
-		Enabled bool
-		Targets []Target
-	}
 	Log  LoggerParams
 	Fqdn string
 }
 
-type MinIO struct {
-	Enabled            bool
+type BackupType struct {
+	Type string
+	Info []BackupTypeInfo
+}
+
+type BackupTypeInfo struct {
 	Endpoint           string
+	Region             string
 	Bucket             string
 	Path               string
 	AccessKey          string
 	SecretKey          string
 	Secure             bool
 	InsecureSkipVerify bool
-	S3FS               S3FS
+	Targets            []Target
 }
 
 type Target struct {
@@ -70,18 +57,6 @@ type Target struct {
 	Host  string
 	Port  string
 	Path  string
-}
-
-type S3FS struct {
-	ShouldMount    bool
-	MountPath      string
-	PasswdFile     string
-	KeepPasswdFile bool
-}
-
-type Cluster struct {
-	IsCluster bool
-	Remote    Remote
 }
 
 type Rotation struct {

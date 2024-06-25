@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"errors"
+	"io"
 	"monodb-backup/notify"
 	"os"
 	"os/exec"
@@ -42,9 +43,7 @@ func getMySQLList() []string {
 
 // func getTableList(db string) {
 // 	dblist := runCommand("-Ne SHOW TABLES FROM " + db)
-// 	fmt.Println(dblist)
 // 	dblist = runCommand("-Ne SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = " + db)
-// 	fmt.Println(dblist)
 
 // }
 
@@ -60,7 +59,6 @@ func getMySQLList() []string {
 //		cmd.Stdout = &stdout
 //		err := cmd.Run()
 //		if err != nil {
-//			fmt.Println(cmd.String())
 //			notify.SendAlarm("Couldn't get the list of databases - Error: "+stdout.String()+"\n"+stderr.String()+"\n"+err.Error(), true)
 //			logger.Fatal("Couldn't get the list of databases - Error: " + stdout.String() + "\n" + stderr.String() + "\n" + err.Error())
 //			return make([]string, 0)
@@ -136,16 +134,86 @@ func getTableList(dbName, path string) ([]string, string, error) {
 	return tableList, filename, nil
 }
 
+func dumpAndUploadMySQL(db string, pipeWriters []*io.PipeWriter) error {
+	encrypted := params.ArchivePass != ""
+	var format string
+	var stderr bytes.Buffer
+	output := make([]byte, 100)
+	var writers []io.Writer
+	for _, pw := range pipeWriters {
+		writers = append(writers, pw)
+	}
+
+	if encrypted {
+		format = "7zip"
+	} else if params.Format == "gzip" {
+		format = "gzip"
+	} else {
+		format = "7zip"
+	}
+
+	logger.Info("MySQL backup started. DB: " + db + " - Compression algorithm: " + format + " - Encrypted: " + strconv.FormatBool(encrypted))
+
+	var mysqlArgs []string
+	if params.Remote.IsRemote {
+		mysqlArgs = append(mysqlArgs, "-h"+params.Remote.Host, "--port="+params.Remote.Port, "-u"+params.Remote.User, "-p"+params.Remote.Password)
+	} else {
+		mysqlArgs = append(mysqlArgs, "-u"+params.Remote.User, "-p"+params.Remote.Password)
+	}
+
+	mysqlArgs = append(mysqlArgs, "--single-transaction", "--quick", "--skip-lock-tables", "--routines", "--triggers", "--events", db)
+
+	if db == "mysql" {
+		mysqlArgs = append(mysqlArgs, "user")
+	}
+	cmd := exec.Command("/usr/bin/mysqldump", mysqlArgs...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
+		return err
+	}
+	stderr2, err := cmd.StderrPipe()
+	if err != nil {
+		logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
+		return err
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
+		return err
+	}
+
+	cmd2 := exec.Command("gzip")
+	cmd2.Stdin = stdout
+
+	cmd2.Stdout = io.MultiWriter(writers...)
+	cmd2.Stderr = &stderr
+
+	err = cmd2.Start()
+	if err != nil {
+		logger.Error("Couldn't compress " + db + " - Error: " + err.Error() + " - " + stderr.String())
+		return err
+	}
+
+	err = cmd2.Wait()
+	if err != nil {
+		logger.Error("Couldn't compress " + db + " - Error: " + err.Error())
+		return err
+	}
+	n, _ := stderr2.Read(output)
+	if n > 0 {
+		if !strings.Contains(string(string(output[:n])), "[Warning] Using a password on the command line interface can be insecure.") {
+			logger.Error("Couldn't back up " + db + " - Error: " + string(string(output[:n])))
+			return errors.New(string(output[:n]))
+		}
+	}
+	return nil
+}
+
 func dumpDBWithTables(db, dst string) ([]string, []string, error) {
 	var dumpPaths, names []string
 	oldDst := dst
-	if params.Rotation.Enabled {
-		dst = dst + "/" + db
-	} else if params.Minio.S3FS.ShouldMount {
-		dst = dst + "/" + minioPath() + "/" + db
-	} else {
-		dst = dst + "/" + db
-	}
 	if err := os.MkdirAll(dst, 0770); err != nil {
 		logger.Error("Couldn't create parent direectories at backup destination. dst: " + dst + " - Error: " + err.Error())
 		return make([]string, 0), make([]string, 0), err
@@ -156,15 +224,7 @@ func dumpDBWithTables(db, dst string) ([]string, []string, error) {
 		return nil, nil, err
 	}
 	dumpPaths = append(dumpPaths, metaFile)
-	if !params.Minio.S3FS.ShouldMount {
-		names = append(names, filepath.Dir(dumpName(db, params.Rotation, ""))+"/"+db+".meta")
-	} else {
-		if params.Rotation.Enabled {
-			names = append(names, filepath.Dir(dumpName(db, params.Rotation, ""))+"/"+minioPath()+"/"+db+".meta")
-		} else {
-			names = append(names, filepath.Dir(dumpName(db, params.Rotation, ""))+"/"+db+".meta")
-		}
-	}
+	names = append(names, filepath.Dir(dumpName(db, params.Rotation, ""))+"/"+db+".meta")
 	for _, table := range tableList {
 		if db == "mysql" && table != "user" {
 			continue
@@ -184,10 +244,6 @@ func dumpTable(db, table, dst string) (string, string, error) {
 	var name string
 	encrypted := params.ArchivePass != ""
 	var format string
-	if !(!params.Rotation.Enabled && params.Minio.S3FS.ShouldMount) {
-		dst += "/" + db
-	}
-
 	if encrypted {
 		format = "7zip"
 	} else if params.Format == "gzip" {
@@ -196,7 +252,7 @@ func dumpTable(db, table, dst string) (string, string, error) {
 		format = "7zip"
 	}
 
-	logger.Info("MySQL backup started. DB: " + db + " - Compression algorithm: " + format + " - Encrypted: " + strconv.FormatBool(encrypted))
+	logger.Info("MySQL backup started. DB: " + db + " Table: " + table + " - Compression algorithm: " + format + " - Encrypted: " + strconv.FormatBool(encrypted))
 
 	var mysqlArgs []string
 	if params.Remote.IsRemote {

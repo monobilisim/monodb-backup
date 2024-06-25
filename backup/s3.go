@@ -1,9 +1,16 @@
 package backup
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"io"
+	"monodb-backup/config"
 	"monodb-backup/notify"
+	"net"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/service/s3"
 
@@ -13,60 +20,132 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
-var sess *session.Session
-var uploader *s3manager.Uploader
-
-func InitializeS3Session() {
-	var err error
-	sess, err = session.NewSessionWithOptions(session.Options{
-		Profile: "default",
-		Config: aws.Config{
-			Region:      aws.String(params.S3.Region),
-			Credentials: credentials.NewStaticCredentials(params.S3.AccessKey, params.S3.SecretKey, ""),
-		},
-	})
-	if err != nil {
-		notify.SendAlarm("Couldn't initialize S3 session. Error: "+err.Error(), true)
-		logger.Fatal(err)
-		return
-	}
-	uploader = s3manager.NewUploader(sess)
+type uploaderStruct struct {
+	instance config.BackupTypeInfo
+	uploader *s3manager.Uploader
 }
 
-func uploadFileToS3(src, dst, db string) {
-	src = strings.TrimSuffix(src, "/")
-	bucketName := params.S3.Bucket
-	file, err := os.Open(src)
+var uploaders []uploaderStruct
+
+func mustGetSystemCertPool() *x509.CertPool {
+	pool, err := x509.SystemCertPool()
 	if err != nil {
-		logger.Error("Couldn't open file " + src + " to read - Error: " + err.Error())
-		notify.SendAlarm("Couldn't open file "+src+" to read - Error: "+err.Error(), true)
-		return
+		return x509.NewCertPool()
 	}
-	defer file.Close()
-	logger.Info("Successfully opened file " + src + " to read.")
-	_, err = uploader.Upload(&s3manager.UploadInput{
+	return pool
+}
+
+func InitializeS3Session() {
+	var options session.Options
+
+	for _, s3Instance := range params.BackupType.Info {
+		if s3Instance.Endpoint == "" {
+			options = session.Options{
+				Profile: "default",
+				Config: aws.Config{
+					Region:      aws.String(s3Instance.Region),
+					Credentials: credentials.NewStaticCredentials(s3Instance.AccessKey, s3Instance.SecretKey, ""),
+				},
+			}
+
+		} else {
+			tr := &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 30 * time.Second,
+				}).DialContext,
+				MaxIdleConns:          256,
+				MaxIdleConnsPerHost:   16,
+				ResponseHeaderTimeout: time.Minute,
+				IdleConnTimeout:       time.Minute,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 10 * time.Second,
+				DisableCompression:    true,
+			}
+			if s3Instance.Secure {
+				tr.TLSClientConfig = &tls.Config{
+					MinVersion: tls.VersionTLS12,
+				}
+				if f := os.Getenv("SSL_CERT_FILE"); f != "" {
+					rootCAs := mustGetSystemCertPool()
+					data, err := os.ReadFile(f)
+					if err == nil {
+						rootCAs.AppendCertsFromPEM(data)
+					}
+					tr.TLSClientConfig.RootCAs = rootCAs
+				}
+			}
+			if s3Instance.InsecureSkipVerify {
+				tr.TLSClientConfig.InsecureSkipVerify = true
+			}
+			httpClient := &http.Client{Transport: tr}
+
+			options = session.Options{
+				Profile:         "default",
+				EC2IMDSEndpoint: s3Instance.Endpoint,
+				Config: aws.Config{
+					Endpoint:         &s3Instance.Endpoint,
+					Region:           aws.String(s3Instance.Region),
+					Credentials:      credentials.NewStaticCredentials(s3Instance.AccessKey, s3Instance.SecretKey, ""),
+					S3ForcePathStyle: aws.Bool(true),
+					HTTPClient:       httpClient,
+				},
+			}
+		}
+		sess, err := session.NewSessionWithOptions(options)
+		if err != nil {
+			notify.SendAlarm("Couldn't initialize S3 session. Error: "+err.Error(), true)
+			logger.Fatal(err)
+			return
+		}
+		uploaders = append(uploaders, uploaderStruct{s3Instance, s3manager.NewUploader(sess)})
+	}
+}
+
+func uploadFileToS3(src, dst, db string, reader io.Reader, s3Instance *uploaderStruct) error {
+	bucketName := s3Instance.instance.Bucket
+	if reader == nil {
+		src = strings.TrimSuffix(src, "/")
+		file, err := os.Open(src)
+		if err != nil {
+			logger.Error("Couldn't open file " + src + " to read - Error: " + err.Error())
+			notify.SendAlarm("Couldn't open file "+src+" to read - Error: "+err.Error(), true)
+			return err
+		}
+		defer file.Close()
+		logger.Info("Successfully opened file " + src + " to read.")
+		reader = file
+	} else {
+		src = db
+	}
+
+	_, err := s3Instance.uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(dst),
-		Body:   file,
+		Body:   reader,
 	})
 	if err != nil {
-		logger.Error("Couldn't upload file " + src + " to S3\nBucket: " + bucketName + " path: " + dst + "\n Error: " + err.Error())
-		notify.SendAlarm("Couldn't upload file "+src+" to S3\nBucket: "+bucketName+" path: "+dst+"\n Error: "+err.Error(), true)
-		return
+		logger.Error("Couldn't upload " + src + " to S3\nBucket: " + bucketName + " path: " + dst + "\n Error: " + err.Error())
+		notify.SendAlarm("Couldn't upload "+src+" to S3\nBucket: "+bucketName+" path: "+dst+"\n Error: "+err.Error(), true)
+		return err
 	}
-	logger.Info("Successfully uploaded file " + src + " to S3\nBucket: " + bucketName + " path: " + dst)
-	notify.SendAlarm("Successfully uploaded file "+src+" to S3\nBucket: "+bucketName+" path: "+dst, false)
+	logger.Info("Successfully uploaded " + src + " to S3\nBucket: " + bucketName + " path: " + dst)
+	notify.SendAlarm("Successfully uploaded "+src+" to S3\nBucket: "+bucketName+" path: "+dst, false)
 	if params.Rotation.Enabled {
+		if db == "mysql" {
+			db = db + "_users"
+		}
 		shouldRotate, name := rotate(db)
-		if params.S3.Path != "" {
-			name = params.S3.Path + "/" + name
+		if s3Instance.instance.Path != "" {
+			name = s3Instance.instance.Path + "/" + name
 		}
 		extension := strings.Split(dst, ".")
 		for i := 1; i < len(extension); i++ {
 			name = name + "." + extension[i]
 		}
 		if shouldRotate {
-			_, err := uploader.S3.CopyObject(&s3.CopyObjectInput{
+			_, err := s3Instance.uploader.S3.CopyObject(&s3.CopyObjectInput{
 				Bucket:     aws.String(bucketName),
 				CopySource: aws.String(bucketName + "/" + dst),
 				Key:        aws.String(name),
@@ -74,10 +153,25 @@ func uploadFileToS3(src, dst, db string) {
 			if err != nil {
 				logger.Error("Couldn't create copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name + "\n Error: " + err.Error())
 				notify.SendAlarm("Couldn't create copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name+"\n Error: "+err.Error(), true)
-				return
+				return err
 			}
 			logger.Info("Successfully created a copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name)
 			notify.SendAlarm("Successfully created a copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name, false)
 		}
 	}
+	return nil
+}
+
+func uploadToS3(src, dst, db string) error {
+	for _, s3Instance := range uploaders {
+		dst := nameWithPath(dst)
+		if s3Instance.instance.Path != "" {
+			dst = s3Instance.instance.Path + "/" + dst
+		}
+		err := uploadFileToS3(src, dst, db, nil, &s3Instance)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -44,21 +44,6 @@ func dumpName(db string, rotation config.Rotation, buName string) string {
 			default:
 				return db + "-" + dateNow.day
 			}
-		} else if params.Minio.S3FS.ShouldMount {
-			if db == "mysql_users" {
-				db = "mysql"
-				buName = "mysql_users"
-			}
-			switch suffix { //TODO + db + "/" +
-			case "day":
-				return buName + "-" + dateNow.day
-			case "hour":
-				return buName + "-" + dateNow.hour
-			case "minute":
-				return buName + "-" + dateNow.minute
-			default:
-				return buName + "-" + dateNow.day
-			}
 		} else {
 			if db == "mysql_users" {
 				db = "mysql"
@@ -97,50 +82,6 @@ func rotate(db string) (bool, string) {
 		}
 	}
 	return false, ""
-}
-
-func rotatePath() string {
-	t := time.Now()
-	date := rightNow{
-		month: time.Now().Format("Jan"),
-		day:   time.Now().Format("Mon"),
-	}
-	switch config.Parameters.Rotation.Period {
-	case "month":
-		yesterday := t.AddDate(0, 0, -1)
-		if yesterday.Month() != t.Month() {
-			return "Monthly/"
-		}
-	case "week":
-		if date.day == "Mon" {
-			return "Weekly/"
-		}
-	}
-	return ""
-}
-
-func minioPath() (newName string) {
-	if !params.Rotation.Enabled {
-		date := rightNow{
-			year:  time.Now().Format("2006"),
-			month: time.Now().Format("01"),
-			now:   time.Now().Format("2006-01-02-150405"),
-		}
-		newName = date.year + "/" + date.month
-	} else {
-		suffix := params.Rotation.Suffix
-		switch suffix {
-		case "day":
-			newName = "Daily/" + dateNow.day
-		case "hour":
-			newName = "Hourly/" + dateNow.day + "/" + dateNow.hour
-		case "minute":
-			newName = "Custom/" + dateNow.day + "/" + dateNow.hour
-		default:
-			newName = "Daily/" + dateNow.day
-		}
-	}
-	return
 }
 
 func nameWithPath(name string) (newName string) {
