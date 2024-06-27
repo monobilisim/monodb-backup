@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func SendRsync(srcPath, dstPath string, target config.Target) {
+func SendRsync(srcPath, dstPath string, target config.Target) error {
 	var dst string
 
 	if target.Path != "" {
@@ -18,7 +18,11 @@ func SendRsync(srcPath, dstPath string, target config.Target) {
 	}
 
 	err := sendRsync(srcPath, dst, target)
-	if err == nil && params.Rotation.Enabled {
+	if err != nil {
+		return err
+	}
+
+	if params.Rotation.Enabled {
 		extension := strings.Split(dstPath, ".")
 		shouldRotate, dstPath := rotate(extension[0])
 		for i := 1; i < len(extension); i++ {
@@ -28,9 +32,13 @@ func SendRsync(srcPath, dstPath string, target config.Target) {
 			dstPath = target.Path + "/" + dstPath
 		}
 		if shouldRotate {
-			_ = sendRsync(srcPath, dstPath, target)
+			err = sendRsync(srcPath, dstPath, target)
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 func sendRsync(srcPath, dstPath string, target config.Target) error {
@@ -65,7 +73,9 @@ func sendRsync(srcPath, dstPath string, target config.Target) error {
 	}
 
 	logger.Info("Successfully uploaded " + srcPath + " to " + target.Host + ":" + dstPath)
-	notify.SendAlarm("Successfully uploaded "+srcPath+" to "+target.Host+":"+dstPath, false)
+	message := "Successfully uploaded " + srcPath + " to " + target.Host + ":" + dstPath
+	notify.SendAlarm(message, false)
+	itWorksNow(message, true)
 
 	return nil
 }

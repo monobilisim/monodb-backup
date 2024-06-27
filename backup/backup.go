@@ -9,6 +9,19 @@ import (
 	"time"
 )
 
+var didItWork bool = true // this variable is for determining if the app should send a notification after a failed backup to inform that it works now
+func itWorksNow(message string, worked bool) {
+	oldOnlyOnError := params.Notify.Webhook.OnlyOnError
+	if !didItWork && worked && oldOnlyOnError {
+		if oldOnlyOnError {
+			params.Notify.Webhook.OnlyOnError = false
+		}
+		notify.SendAlarm(message, false)
+		params.Notify.Webhook.OnlyOnError = oldOnlyOnError
+	}
+	didItWork = worked
+}
+
 func getDBList() (dbList []string) {
 	switch params.Database {
 	case "postgresql":
@@ -90,13 +103,13 @@ func Backup() {
 		}
 		return
 	}
-
 	for _, db := range params.Databases {
 		dst := strings.TrimSuffix(params.BackupDestination, "/") + "/" + db
 		if params.BackupAsTables && db != "mysql" {
 			dumpPaths, names, err := dumpDBWithTables(db, dst)
 			if err != nil {
 				notify.SendAlarm("Problem during backing up "+db+" - Error: "+err.Error(), true)
+				itWorksNow("", false)
 			} else {
 				logger.Info("Successfully backed up database:" + db + " with its tables separately, at " + params.BackupDestination + "/" + db)
 				notify.SendAlarm("Successfully backed up "+db+" at "+params.BackupDestination+"/"+db, false)
@@ -110,6 +123,7 @@ func Backup() {
 			filePath, name, err := dumpDB(db, dst)
 			if err != nil {
 				notify.SendAlarm("Problem during backing up "+db+" - Error: "+err.Error(), true)
+				itWorksNow("", false)
 			} else {
 				logger.Info("Successfully backed up database:" + db + " at " + filePath)
 				notify.SendAlarm("Successfully backed up "+db+" at "+filePath, false)
@@ -160,6 +174,7 @@ func uploadWhileDumping(db string) {
 	err := dumpAndUpload(db, pipeWriters)
 	if err != nil {
 		notify.SendAlarm("Problem during backing up "+db+" - Error: "+err.Error(), true)
+		itWorksNow("", false)
 	}
 	for _, writer := range pipeWriters {
 		writer.Close()
@@ -169,24 +184,37 @@ func uploadWhileDumping(db string) {
 		if uploadErr != nil {
 			logger.Error(strconv.Itoa(i+1) + ") " + db + " - " + "Couldn't upload to S3: " + uploaders[i].instance.Endpoint + "  - Error: " + err.Error())
 			notify.SendAlarm(strconv.Itoa(i+1)+") "+db+" - "+"Couldn't upload to S3: "+uploaders[i].instance.Endpoint+"  - Error: "+err.Error(), true)
+			itWorksNow("", false)
 		} else {
 			logger.Info(strconv.Itoa(i+1) + ") " + db + " - " + "Successfully uploaded to S3: " + uploaders[i].instance.Endpoint)
-			notify.SendAlarm(strconv.Itoa(i+1)+") "+db+" - "+"Successfully uploaded to S3: "+uploaders[i].instance.Endpoint, false)
+			message := strconv.Itoa(i+1) + ") " + db + " - " + "Successfully uploaded to S3: " + uploaders[i].instance.Endpoint
+			notify.SendAlarm(message, false)
+			itWorksNow(message, true)
 		}
 	}
 }
 
 func upload(name, db, filePath string) {
+	var err error
 	switch params.BackupType.Type {
 	case "s3", "minio":
-		uploadToS3(filePath, name, db)
+		err = uploadToS3(filePath, name, db)
+		if err != nil {
+			itWorksNow("", false)
+		}
 	case "sftp":
 		for _, target := range params.BackupType.Info[0].Targets {
-			SendSFTP(filePath, name, db, target)
+			err = SendSFTP(filePath, name, db, target)
+			if err != nil {
+				itWorksNow("", false)
+			}
 		}
 	case "rsync":
 		for _, target := range params.BackupType.Info[0].Targets {
-			SendRsync(filePath, name, target)
+			err = SendRsync(filePath, name, target)
+			if err != nil {
+				itWorksNow("", false)
+			}
 		}
 	}
 }

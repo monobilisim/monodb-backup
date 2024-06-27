@@ -12,14 +12,14 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
-func SendSFTP(srcPath, dstPath, db string, target config.Target) {
+func SendSFTP(srcPath, dstPath, db string, target config.Target) error {
 	dstPath = target.Path + "/" + nameWithPath(dstPath)
 	logger.Info("SFTP transfer started.\n Source: " + srcPath + " - Destination: " + target.Host + ":" + dstPath)
 	sock, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
 	if err != nil {
 		logger.Error("Couldn't get environment variable SSH_AUTH_SOCK - Error: " + err.Error())
 		notify.SendAlarm("Couldn't upload backup "+srcPath+" to "+target.Host+":"+dstPath+"\nCouldn't get environment variable SSH_AUTH_SOCK - Error: "+err.Error(), true)
-		return
+		return err
 	}
 
 	sockAgent := agent.NewClient(sock)
@@ -28,7 +28,7 @@ func SendSFTP(srcPath, dstPath, db string, target config.Target) {
 	if err != nil {
 		logger.Error("Couldn't get signers for ssh keys - Error: " + err.Error())
 		notify.SendAlarm("Couldn't upload backup "+srcPath+" to "+target.Host+":"+dstPath+"\nCouldn't get signers for ssh keys - Error: "+err.Error(), true)
-		return
+		return err
 	}
 	auths := []ssh.AuthMethod{ssh.PublicKeys(signers...)}
 
@@ -51,7 +51,7 @@ func SendSFTP(srcPath, dstPath, db string, target config.Target) {
 	if err != nil {
 		logger.Error("Couldn't create an SFTP client - Error: " + err.Error())
 		notify.SendAlarm("Couldn't upload backup "+srcPath+" to "+target.Host+":"+dstPath+"\nCouldn't create an SFTP client - Error: "+err.Error(), true)
-		return
+		return err
 	}
 	defer func() {
 		err = sftpCli.Close()
@@ -65,7 +65,7 @@ func SendSFTP(srcPath, dstPath, db string, target config.Target) {
 	if err != nil {
 		logger.Error("Couldn't open source file " + srcPath + " for copying - Error: " + err.Error())
 		notify.SendAlarm("Couldn't upload backup "+srcPath+" to "+target.Host+":"+dstPath+"\nCouldn't open source file "+srcPath+" for copying - Error: "+err.Error(), true)
-		return
+		return err
 	}
 	defer func() {
 		err = src.Close()
@@ -75,7 +75,10 @@ func SendSFTP(srcPath, dstPath, db string, target config.Target) {
 		}
 	}()
 
-	sendOverSFTP(srcPath, dstPath, src, target, sftpCli)
+	err = sendOverSFTP(srcPath, dstPath, src, target, sftpCli)
+	if err != nil {
+		return err
+	}
 
 	if params.Rotation.Enabled {
 		shouldRotate, newDst := rotate(db)
@@ -85,13 +88,16 @@ func SendSFTP(srcPath, dstPath, db string, target config.Target) {
 				newDst = newDst + "." + extension[i]
 			}
 			newDst = target.Path + "/" + newDst
-			sendOverSFTP(srcPath, newDst, src, target, sftpCli)
+			err = sendOverSFTP(srcPath, newDst, src, target, sftpCli)
+			if err != nil {
+				return err
+			}
 		}
 	}
-
+	return nil
 }
 
-func sendOverSFTP(srcPath, dstPath string, src *os.File, target config.Target, sftpCli *sftp.Client) {
+func sendOverSFTP(srcPath, dstPath string, src *os.File, target config.Target, sftpCli *sftp.Client) error {
 	fullPath := strings.Split(dstPath, "/")
 	newPath := "/"
 	for i := 0; i < len(fullPath)-1; i++ {
@@ -101,13 +107,13 @@ func sendOverSFTP(srcPath, dstPath string, src *os.File, target config.Target, s
 	if err != nil {
 		logger.Error("Couldn't create folders " + newPath + " - Error: " + err.Error())
 		notify.SendAlarm("Couldn't upload backup "+srcPath+" to "+target.Host+":"+dstPath+"\nCouldn't create folders "+newPath+" - Error: "+err.Error(), true)
-		return
+		return err
 	}
 	dst, err := sftpCli.Create(dstPath)
 	if err != nil {
 		logger.Error("Couldn't create file " + dstPath + " - Error: " + err.Error())
 		notify.SendAlarm("Couldn't upload backup "+srcPath+" to "+target.Host+":"+dstPath+"\nCouldn't create file "+dstPath+" - Error: "+err.Error(), true)
-		return
+		return err
 	}
 	defer func() {
 		err = dst.Close()
@@ -121,8 +127,11 @@ func sendOverSFTP(srcPath, dstPath string, src *os.File, target config.Target, s
 	if _, err := dst.ReadFrom(src); err != nil {
 		logger.Error("Couldn't read from file " + srcPath + " to write at " + dstPath + " - Error: " + err.Error())
 		notify.SendAlarm("Couldn't upload backup "+srcPath+" to "+target.Host+":"+dstPath+"\nCouldn't read from file "+srcPath+" to write at "+dstPath+" - Error: "+err.Error(), true)
-		return
+		return err
 	}
 	logger.Info("Successfully copied " + srcPath + " to " + target.Host + ":" + dstPath)
-	notify.SendAlarm("Successfully copied "+srcPath+" to "+target.Host+":"+dstPath, false)
+	message := "Successfully copied " + srcPath + " to " + target.Host + ":" + dstPath
+	notify.SendAlarm(message, false)
+	itWorksNow(message, true)
+	return nil
 }

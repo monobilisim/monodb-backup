@@ -131,7 +131,9 @@ func uploadFileToS3(src, dst, db string, reader io.Reader, s3Instance *uploaderS
 		return err
 	}
 	logger.Info("Successfully uploaded " + src + " to S3\nBucket: " + bucketName + " path: " + dst)
-	notify.SendAlarm("Successfully uploaded "+src+" to S3\nBucket: "+bucketName+" path: "+dst, false)
+	message := "Successfully uploaded " + src + " to S3\nBucket: " + bucketName + " path: " + dst
+	notify.SendAlarm(message, false)
+	itWorksNow(message, true)
 	if params.Rotation.Enabled {
 		if db == "mysql" {
 			db = db + "_users"
