@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"io"
@@ -103,7 +104,7 @@ func InitializeS3Session() {
 	}
 }
 
-func uploadFileToS3(src, dst, db string, reader io.Reader, s3Instance *uploaderStruct) error {
+func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, s3Instance *uploaderStruct) error {
 	bucketName := s3Instance.instance.Bucket
 	if reader == nil {
 		src = strings.TrimSuffix(src, "/")
@@ -120,7 +121,7 @@ func uploadFileToS3(src, dst, db string, reader io.Reader, s3Instance *uploaderS
 		src = db
 	}
 
-	_, err := s3Instance.uploader.Upload(&s3manager.UploadInput{
+	_, err := s3Instance.uploader.UploadWithContext(ctx, &s3manager.UploadInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(dst),
 		Body:   reader,
@@ -165,12 +166,13 @@ func uploadFileToS3(src, dst, db string, reader io.Reader, s3Instance *uploaderS
 }
 
 func uploadToS3(src, dst, db string) error {
+	ctx := context.Background()
 	for _, s3Instance := range uploaders {
 		dst := nameWithPath(dst)
 		if s3Instance.instance.Path != "" {
 			dst = s3Instance.instance.Path + "/" + dst
 		}
-		err := uploadFileToS3(src, dst, db, nil, &s3Instance)
+		err := uploadFileToS3(ctx, src, dst, db, nil, &s3Instance)
 		if err != nil {
 			return err
 		}

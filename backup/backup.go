@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"context"
 	"io"
 	"monodb-backup/notify"
 	"os"
@@ -13,9 +14,7 @@ var didItWork bool = true // this variable is for determining if the app should 
 func itWorksNow(message string, worked bool) {
 	oldOnlyOnError := params.Notify.Webhook.OnlyOnError
 	if !didItWork && worked && oldOnlyOnError {
-		if oldOnlyOnError {
-			params.Notify.Webhook.OnlyOnError = false
-		}
+		params.Notify.Webhook.OnlyOnError = false
 		notify.SendAlarm(message, false)
 		params.Notify.Webhook.OnlyOnError = oldOnlyOnError
 	}
@@ -143,6 +142,8 @@ func Backup() {
 }
 
 func uploadWhileDumping(db string) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	var name string
 	if db == "mysql" {
 		name = nameWithPath(dumpName(db+"_users", params.Rotation, ""))
@@ -165,7 +166,7 @@ func uploadWhileDumping(db string) {
 		pipeWriters = append(pipeWriters, pipeWriter)
 		uploadDone = append(uploadDone, make(chan error))
 		go func(i int, instance uploaderStruct) {
-			err := uploadFileToS3("", dumpPath, db, pipeReader, &instance)
+			err := uploadFileToS3(ctx, "", dumpPath, db, pipeReader, &instance)
 			uploadDone[i] <- err
 			close(uploadDone[i])
 		}(i, instance)
@@ -173,6 +174,7 @@ func uploadWhileDumping(db string) {
 
 	err := dumpAndUpload(db, pipeWriters)
 	if err != nil {
+		cancel()
 		notify.SendAlarm("Problem during backing up "+db+" - Error: "+err.Error(), true)
 		itWorksNow("", false)
 	}
@@ -182,8 +184,8 @@ func uploadWhileDumping(db string) {
 	for i, channel := range uploadDone {
 		uploadErr := <-channel
 		if uploadErr != nil {
-			logger.Error(strconv.Itoa(i+1) + ") " + db + " - " + "Couldn't upload to S3: " + uploaders[i].instance.Endpoint + "  - Error: " + err.Error())
-			notify.SendAlarm(strconv.Itoa(i+1)+") "+db+" - "+"Couldn't upload to S3: "+uploaders[i].instance.Endpoint+"  - Error: "+err.Error(), true)
+			logger.Error(strconv.Itoa(i+1) + ") " + db + " - " + "Couldn't upload to S3: " + uploaders[i].instance.Endpoint + "  - Error: " + uploadErr.Error())
+			notify.SendAlarm(strconv.Itoa(i+1)+") "+db+" - "+"Couldn't upload to S3: "+uploaders[i].instance.Endpoint+"  - Error: "+uploadErr.Error(), true)
 			itWorksNow("", false)
 		} else {
 			logger.Info(strconv.Itoa(i+1) + ") " + db + " - " + "Successfully uploaded to S3: " + uploaders[i].instance.Endpoint)
