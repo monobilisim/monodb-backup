@@ -96,7 +96,7 @@ func Backup() {
 		params.Databases = tmpDatabases
 	}
 
-	if streamable {
+	if streamable && (params.BackupType.Type == "minio" || params.BackupType.Type == "s3") {
 		for _, db := range params.Databases {
 			uploadWhileDumping(db)
 		}
@@ -213,7 +213,7 @@ func upload(name, db, filePath string) {
 		}
 	case "rsync":
 		for _, target := range params.BackupType.Info[0].Targets {
-			err = SendRsync(filePath, name, target)
+			err = SendRsync(filePath, name, db, target)
 			if err != nil {
 				itWorksNow("", false)
 			}
