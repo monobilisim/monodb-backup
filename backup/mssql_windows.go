@@ -10,7 +10,6 @@ import (
 	"monodb-backup/notify"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 
 	"golang.org/x/sys/windows"
@@ -81,13 +80,6 @@ func getMSSQLList() []string {
 func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 	var name string
 	encrypted := params.ArchivePass != ""
-	// var format string
-
-	// if encrypted {
-	// 	format = "7zip"
-	// } else {
-	// 	format = "gzip"
-	// }
 
 	logger.Info("MSSQL backup started. DB: " + dbName + " - Encrypted: " + strconv.FormatBool(encrypted))
 	name = dumpName(dbName, params.Rotation, "") + ".bak"
@@ -98,16 +90,14 @@ func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 		mssqlDB.Close()
 		return "", "", err
 	}
-	if runtime.GOOS == "windows" {
-		if err := acl.Apply(
-			filepath.Dir(dumpPath),
-			false,
-			false,
-			acl.GrantName(windows.GENERIC_READ, "NT SERVICE\\MSSQLSERVER"),
-			acl.GrantName(windows.GENERIC_WRITE, "NT SERVICE\\MSSQLSERVER"),
-		); err != nil {
-			logger.Fatal(err)
-		}
+	if err := acl.Apply(
+		filepath.Dir(dumpPath),
+		false,
+		false,
+		acl.GrantName(windows.GENERIC_READ, "NT SERVICE\\MSSQLSERVER"),
+		acl.GrantName(windows.GENERIC_WRITE, "NT SERVICE\\MSSQLSERVER"),
+	); err != nil {
+		logger.Fatal(err)
 	}
 
 	ctx := context.Background()

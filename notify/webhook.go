@@ -12,6 +12,9 @@ var webhookStruct *config.Webhook = &config.Parameters.Notify.Webhook
 var logger *clog.CustomLogger = &clog.Logger
 
 func SendAlarm(message string, isError bool) {
+	if !webhookStruct.Enabled || (webhookStruct.OnlyOnError && !isError) {
+		return
+	}
 	var db string = func() string {
 		switch config.Parameters.Database {
 		case "postgresql":
@@ -31,9 +34,6 @@ func SendAlarm(message string, isError bool) {
 	err := Email("Database Backup "+subject, message, isError)
 	if err != nil {
 		logger.Error("Couldn't send mail. Error: " + err.Error())
-	}
-	if !webhookStruct.Enabled || (webhookStruct.OnlyOnError && !isError) {
-		return
 	}
 
 	identifier := "[ " + db + " - " + webhookStruct.ServerIdentifier + " ] "
