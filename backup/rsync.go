@@ -3,7 +3,6 @@ package backup
 import (
 	"bytes"
 	"monodb-backup/config"
-	"monodb-backup/notify"
 	"os/exec"
 	"strings"
 )
@@ -11,7 +10,7 @@ import (
 var lastDB string
 var folderCreated bool
 
-func SendRsync(srcPath, dstPath, db string, target config.Target) error {
+func SendRsync(srcPath, dstPath, db string, target config.Target) (string, error) {
 	var dst string
 
 	if target.Path != "" {
@@ -20,9 +19,9 @@ func SendRsync(srcPath, dstPath, db string, target config.Target) error {
 		dst = nameWithPath(dstPath)
 	}
 
-	err := sendRsync(srcPath, dst, db, target)
+	message, err := sendRsync(srcPath, dst, db, target)
 	if err != nil {
-		return err
+		return message, err
 	}
 
 	if params.Rotation.Enabled {
@@ -35,16 +34,13 @@ func SendRsync(srcPath, dstPath, db string, target config.Target) error {
 			dstPath = target.Path + "/" + dstPath
 		}
 		if shouldRotate {
-			err = sendRsync(srcPath, dstPath, db, target)
-			if err != nil {
-				return err
-			}
+			return sendRsync(srcPath, dstPath, db, target)
 		}
 	}
-	return nil
+	return "", nil
 }
 
-func sendRsync(srcPath, dstPath, db string, target config.Target) error {
+func sendRsync(srcPath, dstPath, db string, target config.Target) (string, error) {
 	var stderr1, stderr2, stdout bytes.Buffer
 
 	logger.Info("rsync transfer started.\n Source: " + srcPath + " - Destination: " + target.Host + ":" + dstPath)
@@ -66,10 +62,11 @@ func sendRsync(srcPath, dstPath, db string, target config.Target) error {
 		err := cmdMkdir.Run()
 		if err != nil {
 			cmdMkdir.Stderr = &stderr1
-			notify.SendAlarm("Couldn't create folder "+newPath+" to upload backups at"+target.Host+":"+dstPath+"\nError: "+err.Error()+" "+stderr1.String(), true)
-			logger.Error("Couldn't create folder " + newPath + " to upload backups at" + target.Host + ":" + dstPath + "\nError: " + err.Error() + " " + stderr1.String())
+			message := "Couldn't create folder " + newPath + " to upload backups at" + target.Host + ":" + dstPath + "\nError: " + err.Error() + " " + stderr1.String()
+			// notify.SendAlarm(message, true)
+			logger.Error(message)
 			lastDB = db
-			return err
+			return message, err
 		}
 	} else {
 		if lastDB != db && !folderCreated {
@@ -77,10 +74,11 @@ func sendRsync(srcPath, dstPath, db string, target config.Target) error {
 			err := cmdMkdir.Run()
 			if err != nil {
 				cmdMkdir.Stderr = &stderr1
-				notify.SendAlarm("Couldn't create folder "+newPath+" to upload backups at"+target.Host+":"+dstPath+"\nError: "+err.Error()+" "+stderr1.String(), true)
-				logger.Error("Couldn't create folder " + newPath + " to upload backups at" + target.Host + ":" + dstPath + "\nError: " + err.Error() + " " + stderr1.String())
+				message := "Couldn't create folder " + newPath + " to upload backups at" + target.Host + ":" + dstPath + "\nError: " + err.Error() + " " + stderr1.String()
+				// notify.SendAlarm(message, true)
+				logger.Error(message)
 				lastDB = db
-				return err
+				return message, err
 			}
 			folderCreated = true
 		}
@@ -92,17 +90,18 @@ func sendRsync(srcPath, dstPath, db string, target config.Target) error {
 
 	err := cmdRsync.Run()
 	if err != nil {
-		notify.SendAlarm("Couldn't send "+srcPath+" to "+target.Host+":"+dstPath+"\nError: "+err.Error()+" "+stderr2.String()+" Stdout: "+stdout.String(), true)
-		logger.Error("Couldn't send " + srcPath + " to " + target.Host + ":" + dstPath + "\nError: " + err.Error() + " " + stderr2.String() + " Stdout: " + stdout.String())
+		message := "Couldn't send " + srcPath + " to " + target.Host + ":" + dstPath + "\nError: " + err.Error() + " " + stderr2.String() + " Stdout: " + stdout.String()
+		// notify.SendAlarm(message, true)
+		logger.Error(message)
 		lastDB = db
-		return err
+		return message, err
 	}
 
-	logger.Info("Successfully uploaded " + srcPath + " to " + target.Host + ":" + dstPath)
 	message := "Successfully uploaded " + srcPath + " to " + target.Host + ":" + dstPath
-	notify.SendAlarm(message, false)
-	itWorksNow(message, true)
+	logger.Info(message)
+	// notify.SendAlarm(message, false)
+	// itWorksNow(message, true)
 
 	lastDB = db
-	return nil
+	return "", nil
 }

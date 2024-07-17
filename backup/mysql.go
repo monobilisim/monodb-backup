@@ -23,7 +23,7 @@ func getMySQLList() []string {
 	cmd := exec.Command("/usr/bin/mysql", mysqlArgs...)
 	out, err := cmd.Output()
 	if err != nil {
-		notify.SendAlarm("Couldn't get the list of databases - Error: "+string(out), true)
+		// notify.SendAlarm("Couldn't get the list of databases - Error: "+string(out), true)
 		logger.Fatal("Couldn't get the list of databases - Error: " + string(out))
 		return nil
 	}
@@ -59,7 +59,7 @@ func getMySQLList() []string {
 //		cmd.Stdout = &stdout
 //		err := cmd.Run()
 //		if err != nil {
-//			notify.SendAlarm("Couldn't get the list of databases - Error: "+stdout.String()+"\n"+stderr.String()+"\n"+err.Error(), true)
+//			// notify.SendAlarm("Couldn't get the list of databases - Error: "+stdout.String()+"\n"+stderr.String()+"\n"+err.Error(), true)
 //			logger.Fatal("Couldn't get the list of databases - Error: " + stdout.String() + "\n" + stderr.String() + "\n" + err.Error())
 //			return make([]string, 0)
 //		}
@@ -215,12 +215,16 @@ func dumpDBWithTables(db, dst string) ([]string, []string, error) {
 	var dumpPaths, names []string
 	oldDst := dst
 	if err := os.MkdirAll(dst, 0770); err != nil {
-		logger.Error("Couldn't create parent direectories at backup destination. dst: " + dst + " - Error: " + err.Error())
+		message := "Couldn't create parent direectories at backup destination. dst: " + dst + " - Error: " + err.Error()
+		logger.Error(message)
+		notify.FailedDBList = append(notify.FailedDBList, db+" - "+message)
 		return make([]string, 0), make([]string, 0), err
 	}
 	tableList, metaFile, err := getTableList(db, dst)
 	if err != nil {
-		logger.Error("Couldn't get the list of tables. Error: " + err.Error())
+		message := "Couldn't get the list of tables. Error: " + err.Error()
+		logger.Error(message)
+		notify.FailedDBList = append(notify.FailedDBList, db+" - "+message)
 		return nil, nil, err
 	}
 	dumpPaths = append(dumpPaths, metaFile)
@@ -231,7 +235,9 @@ func dumpDBWithTables(db, dst string) ([]string, []string, error) {
 		}
 		filePath, name, err := dumpTable(db, table, oldDst) //TODO +
 		if err != nil {
-			logger.Error("Couldn't dump databases. Error: " + err.Error())
+			message := "Couldn't dump databases. Error: " + err.Error()
+			logger.Error(message)
+			notify.FailedDBList = append(notify.FailedDBList, db+" - table: "+table+" - "+message)
 			return nil, nil, err
 		}
 		dumpPaths = append(dumpPaths, filePath)

@@ -50,7 +50,7 @@ func main() {
 		initBackup()
 	}
 	logger.Info("monodb-backup job finished.")
-	notify.SendAlarm("monodb-backup job finished.", false)
+	// notify.SendAlarm("monodb-backup job finished.", false)
 }
 
 func initBackup() {
@@ -58,4 +58,5 @@ func initBackup() {
 		backup.InitializeS3Session()
 	}
 	backup.Backup()
+	notify.SendSingleEntityAlarm()
 }

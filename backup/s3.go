@@ -96,7 +96,7 @@ func InitializeS3Session() {
 		}
 		sess, err := session.NewSessionWithOptions(options)
 		if err != nil {
-			notify.SendAlarm("Couldn't initialize S3 session. Error: "+err.Error(), true)
+			// notify.SendAlarm("Couldn't initialize S3 session. Error: "+err.Error(), true)
 			logger.Fatal(err)
 			return
 		}
@@ -111,7 +111,7 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 		file, err := os.Open(src)
 		if err != nil {
 			logger.Error("Couldn't open file " + src + " to read - Error: " + err.Error())
-			notify.SendAlarm("Couldn't open file "+src+" to read - Error: "+err.Error(), true)
+			// notify.SendAlarm("Couldn't open file "+src+" to read - Error: "+err.Error(), true)
 			return err
 		}
 		defer file.Close()
@@ -128,13 +128,13 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 	})
 	if err != nil {
 		logger.Error("Couldn't upload " + src + " to S3\nBucket: " + bucketName + " path: " + dst + "\n Error: " + err.Error())
-		notify.SendAlarm("Couldn't upload "+src+" to S3\nBucket: "+bucketName+" path: "+dst+"\n Error: "+err.Error(), true)
+		// notify.SendAlarm("Couldn't upload "+src+" to S3\nBucket: "+bucketName+" path: "+dst+"\n Error: "+err.Error(), true)
 		return err
 	}
-	logger.Info("Successfully uploaded " + src + " to S3\nBucket: " + bucketName + " path: " + dst)
 	message := "Successfully uploaded " + src + " to S3\nBucket: " + bucketName + " path: " + dst
-	notify.SendAlarm(message, false)
-	itWorksNow(message, true)
+	logger.Info(message)
+	// notify.SendAlarm(message, false)
+	// itWorksNow(message, true)
 	if params.Rotation.Enabled {
 		if db == "mysql" {
 			db = db + "_users"
@@ -155,11 +155,11 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 			})
 			if err != nil {
 				logger.Error("Couldn't create copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name + "\n Error: " + err.Error())
-				notify.SendAlarm("Couldn't create copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name+"\n Error: "+err.Error(), true)
+				// notify.SendAlarm("Couldn't create copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name+"\n Error: "+err.Error(), true)
 				return err
 			}
 			logger.Info("Successfully created a copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name)
-			notify.SendAlarm("Successfully created a copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name, false)
+			// notify.SendAlarm("Successfully created a copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name, false)
 		}
 	}
 	return nil
@@ -174,7 +174,10 @@ func uploadToS3(src, dst, db string) error {
 		}
 		err := uploadFileToS3(ctx, src, dst, db, nil, &s3Instance)
 		if err != nil {
-			return err
+			notify.FailedDBList = append(notify.FailedDBList, db+" - "+src+" - "+err.Error())
+			// itWorksNow("", false)
+		} else {
+			notify.SuccessfulDBList = append(notify.SuccessfulDBList, db+" - "+src)
 		}
 	}
 	return nil

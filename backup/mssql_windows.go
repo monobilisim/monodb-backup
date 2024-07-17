@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"monodb-backup/notify"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -30,7 +29,7 @@ func InitializeMSSQL() {
 		user = params.Remote.User
 		password = params.Remote.Password
 	} else {
-		notify.SendAlarm("Remote should be enabled when backing up MSSQL databases.", true)
+		// notify.SendAlarm("Remote should be enabled when backing up MSSQL databases.", true)
 		logger.Fatal("Remote should be enabled when backing up MSSQL databases.")
 		return
 	}

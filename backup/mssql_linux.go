@@ -6,12 +6,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	_ "github.com/denisenkom/go-mssqldb"
 	"log"
-	"monodb-backup/notify"
 	"os"
 	"path/filepath"
 	"strconv"
+
+	_ "github.com/denisenkom/go-mssqldb"
 )
 
 var mssqlDB *sql.DB
@@ -20,13 +20,13 @@ func InitializeMSSQL() {
 	var host, port, user, password string
 	var err error
 
-	if params.Remote.IsRemote == true {
+	if params.Remote.IsRemote {
 		host = params.Remote.Host
 		port = params.Remote.Port
 		user = params.Remote.User
 		password = params.Remote.Password
 	} else {
-		notify.SendAlarm("Remote should be enabled when backing up MSSQL databases.", true)
+		// notify.SendAlarm("Remote should be enabled when backing up MSSQL databases.", true)
 		logger.Fatal("Remote should be enabled when backing up MSSQL databases.")
 		return
 	}

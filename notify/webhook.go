@@ -6,10 +6,29 @@ import (
 	"monodb-backup/clog"
 	"monodb-backup/config"
 	"net/http"
+	"strings"
 )
 
 var webhookStruct *config.Webhook = &config.Parameters.Notify.Webhook
 var logger *clog.CustomLogger = &clog.Logger
+
+var FailedDBList []string
+var SuccessfulDBList []string
+
+func SendSingleEntityAlarm() {
+	if !webhookStruct.Enabled {
+		return
+	}
+
+	if len(FailedDBList) != 0 {
+		SendAlarm("Failed to backup the following databases:\n- "+strings.Join(FailedDBList, "\n- "), true)
+		webhookStruct.OnlyOnError = false
+	}
+	if len(SuccessfulDBList) != 0 {
+		SendAlarm("Successfully backed up the following databases:\n- "+strings.Join(SuccessfulDBList, "\n- "), false)
+	}
+	return
+}
 
 func SendAlarm(message string, isError bool) {
 	if !webhookStruct.Enabled || (webhookStruct.OnlyOnError && !isError) {
