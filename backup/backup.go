@@ -168,7 +168,9 @@ func uploadWhileDumping(db string) {
 		pipeWriters = append(pipeWriters, pipeWriter)
 		uploadDone = append(uploadDone, make(chan error))
 		go func(i int, instance uploaderStruct) {
+
 			err := uploadFileToS3(ctx, "", dumpPath, db, pipeReader, &instance)
+			pipeWriter.Close()
 			uploadDone[i] <- err
 			close(uploadDone[i])
 		}(i, instance)

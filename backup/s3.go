@@ -165,7 +165,7 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 	return nil
 }
 
-func uploadToS3(src, dst, db string) error {
+func uploadToS3(src, dst, db string) {
 	ctx := context.Background()
 	for _, s3Instance := range uploaders {
 		dst := nameWithPath(dst)
@@ -180,5 +180,4 @@ func uploadToS3(src, dst, db string) error {
 			notify.SuccessfulDBList = append(notify.SuccessfulDBList, db+" - "+src)
 		}
 	}
-	return nil
 }
