@@ -30,7 +30,7 @@ func getPSQLList() []string {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		notify.SendAlarm("Couldn't get the list of databases - Error: "+string(out), true)
+		notify.SendAlarm("Couldn't get the list of databases - stdout: "+string(out)+"\nError: "+stderr.String(), true)
 		logger.Fatal("Couldn't get the list of databases - Error: " + string(out) + "\nError: " + stderr.String())
 		return nil
 	}
