@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"monodb-backup/notify"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -26,7 +27,7 @@ func InitializeMSSQL() {
 		user = params.Remote.User
 		password = params.Remote.Password
 	} else {
-		// notify.SendAlarm("Remote should be enabled when backing up MSSQL databases.", true)
+		notify.SendAlarm("Remote should be enabled when backing up MSSQL databases.", true)
 		logger.Fatal("Remote should be enabled when backing up MSSQL databases.")
 		return
 	}
@@ -86,12 +87,12 @@ func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 		mssqlDB.Close()
 		return "", "", err
 	}
+	query := "BACKUP DATABASE [" + dbName + "]" +
+		" TO DISK = '" + dumpPath + "'" +
+		" WITH COMPRESSION;"
 
 	ctx := context.Background()
-	_, err := mssqlDB.ExecContext(ctx,
-		"BACKUP DATABASE "+dbName+
-			" TO DISK = '"+dumpPath+"'"+
-			" WITH COMPRESSION;") /* `
+	_, err := mssqlDB.ExecContext(ctx, query) /* `
 	    BACKUP DATABASE `+dbName+`
 	    TO DISK = '`+dumpPath+`'
 	    WITH FORMAT, INIT, NAME = 'Full Backup of `+dbName+`';

@@ -23,7 +23,7 @@ func getMySQLList() []string {
 	cmd := exec.Command("/usr/bin/mysql", mysqlArgs...)
 	out, err := cmd.Output()
 	if err != nil {
-		// notify.SendAlarm("Couldn't get the list of databases - Error: "+string(out), true)
+		notify.SendAlarm("Couldn't get the list of databases - Error: "+string(out), true)
 		logger.Fatal("Couldn't get the list of databases - Error: " + string(out))
 		return nil
 	}
