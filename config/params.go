@@ -61,6 +61,7 @@ type Target struct {
 
 type Rotation struct {
 	Enabled bool
+	Special bool
 	Period  string // week or month
 	Suffix  string // day db-monday.sql.7z - hour db-monday-15.sql.7z - minute db-monday-15-24.sql.7z
 }

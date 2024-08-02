@@ -26,7 +26,13 @@ type uploaderStruct struct {
 	uploader *s3manager.Uploader
 }
 
+type sessionStruct struct {
+	Instance config.BackupTypeInfo
+	Client   *s3.S3
+}
+
 var uploaders []uploaderStruct
+var Sessions []sessionStruct
 
 func mustGetSystemCertPool() *x509.CertPool {
 	pool, err := x509.SystemCertPool()
@@ -100,6 +106,7 @@ func InitializeS3Session() {
 			logger.Fatal(err)
 			return
 		}
+		Sessions = append(Sessions, sessionStruct{s3Instance, s3.New(sess)})
 		uploaders = append(uploaders, uploaderStruct{s3Instance, s3manager.NewUploader(sess)})
 	}
 }
