@@ -9,12 +9,14 @@ import (
 )
 
 type rightNow struct {
-	year   string
-	month  string
-	day    string
-	hour   string
-	minute string
-	now    string
+	year       string
+	month      string
+	day        string
+	hour       string
+	minute     string
+	hourOnly   string
+	minuteOnly string
+	now        string
 }
 
 var dateNow rightNow
@@ -44,10 +46,10 @@ func dumpName(db string, rotation config.Rotation, buName string) string {
 			case "minute":
 				return db + "-" + dateNow.minute
 			case "custom":
-				if time.Now().Format("04") == "00" {
-					return db + "-" + time.Now().Format("15")
+				if dateNow.minuteOnly == "00" {
+					return db + "-" + dateNow.hourOnly
 				} else {
-					return db + "-" + time.Now().Format("04")
+					return db + "-" + dateNow.minuteOnly
 				}
 			default:
 				return db + "-" + dateNow.day
@@ -115,8 +117,8 @@ func nameWithPath(name string) (newName string) {
 	if !params.Rotation.Enabled {
 		newName = name
 	} else if params.Rotation.Special {
-		if time.Now().Format("04") == "00" {
-			newName = "Hourly/" + time.Now().Format("15") + "/" + name
+		if dateNow.minuteOnly == "00" {
+			newName = "Hourly/" + dateNow.hourOnly + "/" + name
 		} else {
 			newName = "Last20Minutes/" + name
 		}

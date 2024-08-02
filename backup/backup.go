@@ -69,10 +69,12 @@ func Backup() {
 	streamable := (params.Database == "" || params.Database == "postgresql" || (params.Database == "mysql" && !params.BackupAsTables)) && params.ArchivePass == ""
 
 	dateNow = rightNow{
-		day:    time.Now().Format("Mon"),
-		hour:   time.Now().Format("Mon-15"),
-		minute: time.Now().Format("Mon-15_04"),
-		now:    time.Now().Format("2006-01-02-150405"),
+		day:        time.Now().Format("Mon"),
+		hour:       time.Now().Format("Mon-15"),
+		hourOnly:   time.Now().Format("15"),
+		minute:     time.Now().Format("Mon-15_04"),
+		minuteOnly: time.Now().Format("04"),
+		now:        time.Now().Format("2006-01-02-150405"),
 	}
 
 	if len(params.Databases) == 0 {
