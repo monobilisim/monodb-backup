@@ -15,12 +15,27 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+func isCommandAvailable(name string) (bool, string) {
+	path, err := exec.LookPath(name)
+	if err != nil {
+		return false, ""
+	}
+	return true, path
+}
+
+var mysqlCommand string = "/usr/bin/mysql"
+var dumpCommand string = "/usr/bin/mysqldump"
+
 func getMySQLList() []string {
+	mariadb, mysqlCommandTMP := isCommandAvailable("mariadb")
+	if mariadb {
+		mysqlCommand = mysqlCommandTMP
+	}
 	mysqlArgs := []string{"-e SHOW DATABASES;"}
 	if params.Remote.IsRemote {
 		mysqlArgs = append(mysqlArgs, "-h"+params.Remote.Host, "--port="+params.Remote.Port, "-u"+params.Remote.User, "-p"+params.Remote.Password)
 	}
-	cmd := exec.Command("/usr/bin/mysql", mysqlArgs...)
+	cmd := exec.Command(mysqlCommand, mysqlArgs...)
 	out, err := cmd.Output()
 	if err != nil {
 		notify.SendAlarm("Couldn't get the list of databases - Error: "+string(out), true)
@@ -144,6 +159,11 @@ func dumpAndUploadMySQL(db string, pipeWriters []*io.PipeWriter) error {
 		writers = append(writers, pw)
 	}
 
+	mariadb, dumpCommandTMP := isCommandAvailable("mariadb-dump")
+	if mariadb {
+		dumpCommand = dumpCommandTMP
+	}
+
 	if encrypted {
 		format = "7zip"
 	} else if params.Format == "gzip" {
@@ -166,7 +186,7 @@ func dumpAndUploadMySQL(db string, pipeWriters []*io.PipeWriter) error {
 	if db == "mysql" {
 		mysqlArgs = append(mysqlArgs, "user")
 	}
-	cmd := exec.Command("/usr/bin/mysqldump", mysqlArgs...)
+	cmd := exec.Command(dumpCommand, mysqlArgs...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
@@ -316,6 +336,11 @@ func mysqlDump(db, name, dst string, encrypted bool, mysqlArgs []string) (string
 	var stderr bytes.Buffer
 	var format string
 
+	mariadb, dumpCommandTMP := isCommandAvailable("mariadb-dump")
+	if mariadb {
+		dumpCommand = dumpCommandTMP
+	}
+
 	if encrypted {
 		format = "7zip"
 	} else if params.Format == "gzip" {
@@ -325,7 +350,7 @@ func mysqlDump(db, name, dst string, encrypted bool, mysqlArgs []string) (string
 	}
 	output := make([]byte, 100)
 	var dumpPath string
-	cmd = exec.Command("/usr/bin/mysqldump", mysqlArgs...)
+	cmd = exec.Command(dumpCommand, mysqlArgs...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
