@@ -31,6 +31,17 @@ func SendSingleEntityAlarm() {
 }
 
 func SendAlarm(message string, isError bool) {
+	var subject string
+	if isError {
+		subject = "Error"
+	} else {
+		subject = "Success"
+	}
+	err := Email("Database Backup "+subject, message, isError)
+	if err != nil {
+		logger.Error("Couldn't send mail. Error: " + err.Error())
+	}
+
 	if !webhookStruct.Enabled || (webhookStruct.OnlyOnError && !isError) {
 		return
 	}
@@ -44,16 +55,6 @@ func SendAlarm(message string, isError bool) {
 			return "PostgreSQL"
 		}
 	}()
-	var subject string
-	if isError {
-		subject = "Error"
-	} else {
-		subject = "Success"
-	}
-	err := Email("Database Backup "+subject, message, isError)
-	if err != nil {
-		logger.Error("Couldn't send mail. Error: " + err.Error())
-	}
 
 	identifier := "[ " + db + " - " + webhookStruct.ServerIdentifier + " ] "
 
