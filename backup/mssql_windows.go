@@ -34,7 +34,7 @@ func InitializeMSSQL() {
 		logger.Fatal("Remote should be enabled when backing up MSSQL databases.")
 		return
 	}
-	connString := fmt.Sprintf("server=%s;user id=%s;password=%s;port=%s",
+	connString := fmt.Sprintf("server=%s;user id=%s;password=%s;port=%s;encrypt=disable;trustServerCertificate=true",
 		host, user, password, port)
 
 	// Create connection pool
@@ -87,7 +87,6 @@ func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 
 	if err := os.MkdirAll(filepath.Dir(dumpPath), 0770); err != nil {
 		logger.Error("Couldn't create parent directories at backup destination " + dst + ". Name: " + name + " - Error: " + err.Error())
-		mssqlDB.Close()
 		return "", "", err
 	}
 	if err := acl.Apply(
@@ -115,9 +114,7 @@ func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 	`, )*/
 	if err != nil {
 		logger.Error("Couldn't back up database: " + dbName + " - Error: " + err.Error())
-		mssqlDB.Close()
 		return "", "", err
 	}
-	mssqlDB.Close()
 	return dumpPath, name, nil
 }

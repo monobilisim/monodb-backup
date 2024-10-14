@@ -84,7 +84,6 @@ func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 
 	if err := os.MkdirAll(filepath.Dir(dumpPath), 0770); err != nil {
 		logger.Error("Couldn't create parent directories at backup destination " + dst + ". Name: " + name + " - Error: " + err.Error())
-		mssqlDB.Close()
 		return "", "", err
 	}
 	query := "BACKUP DATABASE [" + dbName + "]" +
@@ -103,9 +102,7 @@ func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 	`, )*/
 	if err != nil {
 		logger.Error("Couldn't back up database: " + dbName + " - Error: " + err.Error())
-		mssqlDB.Close()
 		return "", "", err
 	}
-	mssqlDB.Close()
 	return dumpPath, name, nil
 }

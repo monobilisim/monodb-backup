@@ -141,6 +141,9 @@ func Backup() {
 			}
 		}
 	}
+	if params.Database == "mssql" {
+		mssqlDB.Close()
+	}
 }
 
 func uploadWhileDumping(db string) {
