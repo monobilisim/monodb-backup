@@ -5,6 +5,7 @@ import (
 	"io"
 	"monodb-backup/notify"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -103,7 +104,12 @@ func Backup() {
 		return
 	}
 	for _, db := range params.Databases {
-		dst := strings.TrimSuffix(params.BackupDestination, "/") + "/" + db
+		var dst string
+		if runtime.GOOS == "windows" {
+			dst = strings.TrimSuffix(params.BackupDestination, "/") + db
+		} else {
+			dst = strings.TrimSuffix(params.BackupDestination, "/") + "/" + db
+		}
 		if params.BackupAsTables && db != "mysql" {
 			dumpPaths, names, err := dumpDBWithTables(db, dst)
 			if err != nil {

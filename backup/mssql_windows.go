@@ -34,7 +34,7 @@ func InitializeMSSQL() {
 		logger.Fatal("Remote should be enabled when backing up MSSQL databases.")
 		return
 	}
-	connString := fmt.Sprintf("server=%s;user id=%s;password=%s;port=%s;encrypt=disable;trustServerCertificate=true",
+	connString := fmt.Sprintf("server=%s;user id=%s;password=%s;port=%s;encrypt=disable;trustServerCertificate=true;trusted_connection=yes",
 		host, user, password, port)
 
 	// Create connection pool
@@ -83,7 +83,7 @@ func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 
 	logger.Info("MSSQL backup started. DB: " + dbName + " - Encrypted: " + strconv.FormatBool(encrypted))
 	name = dumpName(dbName, params.Rotation, "") + ".bak"
-	dumpPath := dst + filepath.FromSlash(name)
+	dumpPath := dst + "\\" + filepath.FromSlash(name)
 
 	if err := os.MkdirAll(filepath.Dir(dumpPath), 0770); err != nil {
 		logger.Error("Couldn't create parent directories at backup destination " + dst + ". Name: " + name + " - Error: " + err.Error())
@@ -103,7 +103,7 @@ func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 	_, err := mssqlDB.ExecContext(ctx,
 		"BACKUP DATABASE "+dbName+
 			" TO DISK = '"+dumpPath+"'"+
-			" WITH COMPRESSION;") /* `
+			" WITH FORMAT, INIT, NAME = 'Full Backup of "+dbName+"';") /* `
 	    BACKUP DATABASE `+dbName+`
 	    TO DISK = '`+dumpPath+`'
 	    WITH FORMAT, INIT, NAME = 'Full Backup of `+dbName+`';
