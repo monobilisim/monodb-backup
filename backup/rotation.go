@@ -2,6 +2,7 @@ package backup
 
 import (
 	"monodb-backup/config"
+	"os"
 	"strconv"
 	"time"
 )
@@ -63,7 +64,32 @@ func dumpName(db string, rotation config.Rotation, buName string) string {
 	}
 }
 
+func updateRotatedTimestamp(db string) {
+	timestamp := time.Now().Format(time.RFC3339)
+	err := os.WriteFile("/tmp/monodb-rotated-"+db, []byte(timestamp), 0644)
+	if err != nil {
+		logger.Error("Failed to update rotated timestamp: " + err.Error())
+	}
+}
+
+func isRotated(db string) bool {
+	timestamp, err := os.ReadFile("/tmp/monodb-rotated-" + db)
+	if err != nil {
+		logger.Error("Failed to read rotated timestamp: " + err.Error())
+		return false
+	}
+	timestampTime, err := time.Parse(time.RFC3339, string(timestamp))
+	if err != nil {
+		logger.Error("Failed to parse rotated timestamp: " + err.Error())
+		return false
+	}
+	return timestampTime.Add(23 * time.Hour).After(time.Now())
+}
+
 func rotate(db string) (bool, string) {
+	if isRotated(db) {
+		return false, ""
+	}
 	t := time.Now()
 	_, week := t.ISOWeek()
 	date := rightNow{

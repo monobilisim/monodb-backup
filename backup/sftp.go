@@ -91,6 +91,7 @@ func SendSFTP(srcPath, dstPath, db string, target config.Target) error {
 			if err != nil {
 				return err
 			}
+			updateRotatedTimestamp(db)
 		}
 	}
 	return nil

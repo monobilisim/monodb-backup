@@ -153,7 +153,8 @@ func Backup() {
 }
 
 func uploadWhileDumping(db string) {
-	ctx, cancel := context.WithCancel(context.Background())
+	logger.Info("Backup started for " + db)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(params.CtxCancel)*time.Hour)
 	defer cancel()
 	var name string
 	if db == "mysql" {
@@ -187,26 +188,32 @@ func uploadWhileDumping(db string) {
 
 	err := dumpAndUpload(db, pipeWriters)
 	if err != nil {
-		cancel()
-		// notify.SendAlarm("Problem during backing up "+db+" - Error: "+err.Error(), true)
-		// itWorksNow("", false)
+		logger.Error("Error during dump of " + db + " - Error: " + err.Error())
+		for _, writer := range pipeWriters {
+			writer.Close()
+		}
+		notify.FailedDBList = append(notify.FailedDBList, db+" - Dump Error: "+err.Error())
+		return
 	}
+
 	for _, writer := range pipeWriters {
 		writer.Close()
 	}
+
 	for i, channel := range uploadDone {
-		uploadErr := <-channel
-		if uploadErr != nil {
-			logger.Error(strconv.Itoa(i+1) + ") " + db + " - " + "Couldn't upload to S3: " + uploaders[i].instance.Endpoint + "  - Error: " + uploadErr.Error())
-			// notify.SendAlarm(strconv.Itoa(i+1)+") "+db+" - "+"Couldn't upload to S3: "+uploaders[i].instance.Endpoint+"  - Error: "+uploadErr.Error(), true)
-			notify.FailedDBList = append(notify.FailedDBList, db+" to "+uploaders[i].instance.Endpoint+" - Error: "+uploadErr.Error())
-			// itWorksNow("", false)
-		} else {
-			message := strconv.Itoa(i+1) + ") " + db + " - " + "Successfully uploaded to S3: " + uploaders[i].instance.Endpoint
-			logger.Info(message)
-			// notify.SendAlarm(message, false)
-			notify.SuccessfulDBList = append(notify.SuccessfulDBList, db+" to "+uploaders[i].instance.Endpoint)
-			// itWorksNow(message, true)
+		select {
+		case uploadErr := <-channel:
+			if uploadErr != nil {
+				logger.Error(strconv.Itoa(i+1) + ") " + db + " - " + "Couldn't upload to S3: " + uploaders[i].instance.Endpoint + "  - Error: " + uploadErr.Error())
+				notify.FailedDBList = append(notify.FailedDBList, db+" to "+uploaders[i].instance.Endpoint+" - Error: "+uploadErr.Error())
+			} else {
+				message := strconv.Itoa(i+1) + ") " + db + " - " + "Successfully uploaded to S3: " + uploaders[i].instance.Endpoint
+				logger.Info(message)
+				notify.SuccessfulDBList = append(notify.SuccessfulDBList, db+" to "+uploaders[i].instance.Endpoint)
+			}
+		case <-ctx.Done():
+			logger.Error(strconv.Itoa(i+1) + ") " + db + " - Upload timed out or was cancelled")
+			notify.FailedDBList = append(notify.FailedDBList, db+" to "+uploaders[i].instance.Endpoint+" - Error: timeout")
 		}
 	}
 }

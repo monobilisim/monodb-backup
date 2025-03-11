@@ -16,6 +16,7 @@ type Params struct {
 	BackupAsTables    bool
 	RemoveLocal       bool
 	ArchivePass       string
+	CtxCancel         uint8
 	Rotation          Rotation
 	Remote            Remote
 	RunEveryCron      string
@@ -120,6 +121,10 @@ func ParseParams(configFile *string) {
 	if err != nil {
 		log.Fatalf("Unable to decode config into struct, %v\n", err)
 		return
+	}
+
+	if Parameters.CtxCancel == 0 {
+		Parameters.CtxCancel = 12
 	}
 
 	Parameters.Fqdn, _ = os.Hostname()

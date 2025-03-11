@@ -148,18 +148,27 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 			name = name + "." + extension[i]
 		}
 		if shouldRotate {
-			_, err := s3Instance.uploader.S3.CopyObject(&s3.CopyObjectInput{
-				Bucket:     aws.String(bucketName),
-				CopySource: aws.String(bucketName + "/" + dst),
-				Key:        aws.String(name),
+			sourceObj, err := s3Instance.uploader.S3.GetObject(&s3.GetObjectInput{
+				Bucket: aws.String(bucketName),
+				Key:    aws.String(dst),
+			})
+			if err != nil {
+				logger.Error("Couldn't get source object for rotation\nBucket: " + bucketName + " path: " + dst + "\n Error: " + err.Error())
+				return err
+			}
+			defer sourceObj.Body.Close()
+
+			_, err = s3Instance.uploader.Upload(&s3manager.UploadInput{
+				Bucket: aws.String(bucketName),
+				Key:    aws.String(name),
+				Body:   sourceObj.Body,
 			})
 			if err != nil {
 				logger.Error("Couldn't create copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name + "\n Error: " + err.Error())
-				// notify.SendAlarm("Couldn't create copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name+"\n Error: "+err.Error(), true)
 				return err
 			}
+			updateRotatedTimestamp(db)
 			logger.Info("Successfully created a copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name)
-			// notify.SendAlarm("Successfully created a copy of "+src+" for rotation\nBucket: "+bucketName+" path: "+name, false)
 		}
 	}
 	return nil

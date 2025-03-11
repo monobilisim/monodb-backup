@@ -36,6 +36,7 @@ func SendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 		if shouldRotate {
 			return sendRsync(srcPath, dstPath, db, target)
 		}
+		updateRotatedTimestamp(db)
 	}
 	return "", nil
 }
