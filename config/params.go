@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"log"
 	"os"
 
@@ -17,6 +18,7 @@ type Params struct {
 	RemoveLocal       bool
 	ArchivePass       string
 	CtxCancel         uint8
+	Base64            bool // Remote.Host, Remote.User, Remote.Password, Target.Host, Target.Password
 	Rotation          Rotation
 	Remote            Remote
 	RunEveryCron      string
@@ -101,6 +103,47 @@ type LoggerParams struct {
 
 var Parameters Params
 
+func decodeB64Vars() {
+	if Parameters.Base64 {
+		remoteHost, err := base64.StdEncoding.DecodeString(Parameters.Remote.Host)
+		if err != nil {
+			log.Fatalf("Unable to decode Base64 encoded credential, %v\n", err)
+			return
+		}
+		remoteUser, err := base64.StdEncoding.DecodeString(Parameters.Remote.User)
+		if err != nil {
+			log.Fatalf("Unable to decode Base64 encoded credential, %v\n", err)
+			return
+		}
+		remotePassword, err := base64.StdEncoding.DecodeString(Parameters.Remote.Password)
+		if err != nil {
+			log.Fatalf("Unable to decode Base64 encoded credential, %v\n", err)
+			return
+		}
+		Parameters.Remote.Host = string(remoteHost)
+		Parameters.Remote.User = string(remoteUser)
+		Parameters.Remote.Password = string(remotePassword)
+
+		if Parameters.BackupType.Type == "minio" || Parameters.BackupType.Type == "s3" {
+			for i, target := range Parameters.BackupType.Info {
+				targetHost, err := base64.StdEncoding.DecodeString(target.Endpoint)
+				if err != nil {
+					log.Fatalf("Unable to decode Base64 encoded credential, %v\n", err)
+					return
+				}
+
+				targetPassword, err := base64.StdEncoding.DecodeString(target.SecretKey)
+				if err != nil {
+					log.Fatalf("Unable to decode Base64 encoded credential, %v\n", err)
+					return
+				}
+				Parameters.BackupType.Info[i].Endpoint = string(targetHost)
+				Parameters.BackupType.Info[i].SecretKey = string(targetPassword)
+			}
+		}
+	}
+}
+
 func ParseParams(configFile *string) {
 	filePath := configFile
 
@@ -126,6 +169,8 @@ func ParseParams(configFile *string) {
 	if Parameters.CtxCancel == 0 {
 		Parameters.CtxCancel = 12
 	}
+
+	decodeB64Vars()
 
 	Parameters.Fqdn, _ = os.Hostname()
 }
