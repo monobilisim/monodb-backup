@@ -75,12 +75,12 @@ func updateRotatedTimestamp(db string) {
 func isRotated(db string) bool {
 	timestamp, err := os.ReadFile("/tmp/monodb-rotated-" + db)
 	if err != nil {
-		logger.Error("Failed to read rotated timestamp: " + err.Error())
+		logger.Info("Failed to read rotated timestamp: " + err.Error())
 		return false
 	}
 	timestampTime, err := time.Parse(time.RFC3339, string(timestamp))
 	if err != nil {
-		logger.Error("Failed to parse rotated timestamp: " + err.Error())
+		logger.Info("Failed to parse rotated timestamp: " + err.Error())
 		return false
 	}
 	return timestampTime.Add(23 * time.Hour).After(time.Now())
