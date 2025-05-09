@@ -100,7 +100,11 @@ func InitializeS3Session() {
 			logger.Fatal(err)
 			return
 		}
-		uploaders = append(uploaders, uploaderStruct{s3Instance, s3manager.NewUploader(sess)})
+		uploader := s3manager.NewUploader(sess, func(u *s3manager.Uploader) {
+			u.PartSize = 64 * 1024 * 1024
+			u.Concurrency = 10
+		})
+		uploaders = append(uploaders, uploaderStruct{s3Instance, uploader})
 	}
 }
 
