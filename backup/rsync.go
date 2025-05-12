@@ -9,6 +9,7 @@ import (
 
 var lastDB, lastHost string
 var folderCreated bool
+var rotating bool
 
 func SendRsync(srcPath, dstPath, db string, target config.Target) (string, error) {
 	var dst string
@@ -34,8 +35,10 @@ func SendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 			dstPath = target.Path + "/" + dstPath
 		}
 		if shouldRotate {
+			rotating = true
 			return sendRsync(srcPath, dstPath, db, target)
 		}
+		rotating = false
 		updateRotatedTimestamp(db)
 	}
 	return "", nil
@@ -71,7 +74,7 @@ func sendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 			return message, err
 		}
 	} else {
-		if (lastDB != db && !folderCreated) || lastHost != target.Host {
+		if (lastDB != db && !folderCreated) || lastHost != target.Host || rotating {
 			cmdMkdir := exec.Command("ssh", "-o", "HostKeyAlgorithms=+ssh-rsa", "-o", "PubKeyAcceptedKeyTypes=+ssh-rsa", target.Host, "mkdir -p "+newPath)
 			err := cmdMkdir.Run()
 			if err != nil {
