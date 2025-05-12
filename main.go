@@ -8,6 +8,7 @@ import (
 	"monodb-backup/config"
 	"monodb-backup/notify"
 	"runtime"
+	"time"
 
 	"github.com/robfig/cron"
 )
@@ -39,6 +40,18 @@ func main() {
 	}
 
 	logger.Info("monodb-backup started.")
+
+	if config.Parameters.Notify.UptimeAlarm {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+
+		go func() {
+			for range ticker.C {
+				backup.SendHourlyUptimeStatus()
+			}
+		}()
+
+	}
 
 	if config.Parameters.RunEveryCron != "" {
 		c := cron.New()

@@ -24,7 +24,9 @@ type Params struct {
 	RunEveryCron      string
 	BackupType        BackupType
 	Notify            struct {
-		Email struct {
+		UptimeAlarm      bool
+		UptimeStartLimit int
+		Email            struct {
 			Enabled            bool
 			OnlyOnError        bool
 			InsecureSkipVerify bool

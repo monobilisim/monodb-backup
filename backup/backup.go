@@ -2,25 +2,49 @@ package backup
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"monodb-backup/notify"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
-// var didItWork bool = true // this variable is for determining if the app should send a notification after a failed backup to inform that it works now
-// func tWorksNow(message string, worked bool) {
-// 	oldOnlyOnError := params.Notify.Webhook.OnlyOnError
-// 	if !didItWork && worked && oldOnlyOnError {
-// 		params.Notify.Webhook.OnlyOnError = false
-// 		// notify.SendAlarm(message, false)
-// 		params.Notify.Webhook.OnlyOnError = oldOnlyOnError
-// 	}
-// 	didItWork = worked
-// }
+var (
+	appStartTime       time.Time
+	currentDB          string
+	currentDBStartTime time.Time
+	mu                 sync.Mutex // Mutex to protect access to currentDB and currentDBStartTime
+)
+
+func init() {
+	appStartTime = time.Now()
+}
+
+func SendHourlyUptimeStatus() {
+	mu.Lock()
+	db := currentDB
+	dbStart := currentDBStartTime
+	mu.Unlock()
+
+	totalUptime := time.Since(appStartTime).Round(time.Second)
+	message := fmt.Sprintf("Uptime: %s. ", totalUptime)
+
+	if db != "" {
+		dbUptime := time.Since(dbStart).Round(time.Second)
+		message += fmt.Sprintf("Currently backing up: %s (started %s ago).", db, dbUptime)
+	} else {
+		message += "Currently idle."
+	}
+
+	logger.Info("Hourly Status: ", message)
+	if totalUptime.Hours() > float64(params.Notify.UptimeStartLimit) {
+		notify.SendAlarm(message, true)
+	}
+}
 
 func getDBList() (dbList []string) {
 	switch params.Database {
@@ -66,7 +90,10 @@ func dumpDB(db string, dst string) (string, string, error) {
 
 func Backup() {
 	logger.Info("monodb-backup job started.")
-	// notify.SendAlarm("Database backup started.", false)
+	mu.Lock()
+	currentDB = ""
+	mu.Unlock()
+
 	streamable := (params.Database == "" || params.Database == "postgresql" || (params.Database == "mysql" && !params.BackupAsTables)) && params.ArchivePass == ""
 
 	dateNow = rightNow{
@@ -99,11 +126,23 @@ func Backup() {
 
 	if streamable && (params.BackupType.Type == "minio" || params.BackupType.Type == "s3") {
 		for _, db := range params.Databases {
+			mu.Lock()
+			currentDB = db
+			currentDBStartTime = time.Now()
+			mu.Unlock()
 			uploadWhileDumping(db)
 		}
+		mu.Lock()
+		currentDB = ""
+		mu.Unlock()
+		logger.Info("monodb-backup streamable job finished.")
 		return
 	}
 	for _, db := range params.Databases {
+		mu.Lock()
+		currentDB = db
+		currentDBStartTime = time.Now()
+		mu.Unlock()
 		var dst string
 		if runtime.GOOS == "windows" {
 			dst = strings.TrimSuffix(params.BackupDestination, "/") + db
@@ -147,9 +186,13 @@ func Backup() {
 			}
 		}
 	}
+	mu.Lock()
+	currentDB = ""
+	mu.Unlock()
 	if params.Database == "mssql" {
 		mssqlDB.Close()
 	}
+	logger.Info("monodb-backup non-streamable job finished.")
 }
 
 func uploadWhileDumping(db string) {
