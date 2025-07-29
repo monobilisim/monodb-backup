@@ -147,7 +147,12 @@ func Backup() {
 		if runtime.GOOS == "windows" {
 			dst = strings.TrimSuffix(params.BackupDestination, "/") + db
 		} else {
-			dst = strings.TrimSuffix(params.BackupDestination, "/") + "/" + db
+			dst = strings.TrimSuffix(params.BackupDestination, "/") + "/" + nameWithPath(db)
+		}
+		fullPath := strings.Split(dst, "/")
+		dst = fullPath[0]
+		for i := 1; i < len(fullPath)-1; i++ {
+			dst = dst + "/" + fullPath[i]
 		}
 		if params.BackupAsTables && db != "mysql" {
 			dumpPaths, names, err := dumpDBWithTables(db, dst)

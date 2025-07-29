@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-var lastDB, lastHost string
+var lastDB, lastHost, lastPath string
 var folderCreated bool
 var rotating bool
 
@@ -70,11 +70,12 @@ func sendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 			// notify.SendAlarm(message, true)
 			logger.Error(message)
 			lastDB = db
+			lastPath = newPath
 			lastHost = target.Host
 			return message, err
 		}
 	} else {
-		if (lastDB != db && !folderCreated) || lastHost != target.Host || rotating {
+		if (lastDB != db && !folderCreated) || lastHost != target.Host || rotating || lastPath != newPath {
 			cmdMkdir := exec.Command("ssh", "-o", "HostKeyAlgorithms=+ssh-rsa", "-o", "PubKeyAcceptedKeyTypes=+ssh-rsa", target.Host, "mkdir -p "+newPath)
 			err := cmdMkdir.Run()
 			if err != nil {
@@ -83,6 +84,7 @@ func sendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 				// notify.SendAlarm(message, true)
 				logger.Error(message)
 				lastDB = db
+				lastPath = newPath
 				lastHost = target.Host
 				return message, err
 			}
@@ -100,6 +102,7 @@ func sendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 		// notify.SendAlarm(message, true)
 		logger.Error(message)
 		lastDB = db
+		lastPath = newPath
 		lastHost = target.Host
 		return message, err
 	}
@@ -110,6 +113,7 @@ func sendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 	// itWorksNow(message, true)
 
 	lastDB = db
+	lastPath = newPath
 	lastHost = target.Host
 	return "", nil
 }

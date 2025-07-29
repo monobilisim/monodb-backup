@@ -139,7 +139,7 @@ func getTableList(dbName, path string) ([]string, string, error) {
 		return make([]string, 0), "", err
 	}
 
-	filename := path + "/" + dbName + ".meta"
+	filename := path + "/" + dbName + "/" + dbName + ".meta"
 
 	if err := os.WriteFile(filename, []byte(charSet+" "+collationName), 0666); err != nil {
 		logger.Error(err.Error())
@@ -234,8 +234,8 @@ func dumpAndUploadMySQL(db string, pipeWriters []*io.PipeWriter) error {
 func dumpDBWithTables(db, dst string) ([]string, []string, error) {
 	var dumpPaths, names []string
 	oldDst := dst
-	if err := os.MkdirAll(dst, 0770); err != nil {
-		message := "Couldn't create parent direectories at backup destination. dst: " + dst + " - Error: " + err.Error()
+	if err := os.MkdirAll(dst+"/"+db, 0770); err != nil {
+		message := "Couldn't create parent direectories at backup destination. dst: " + dst + "/" + db + " - Error: " + err.Error()
 		logger.Error(message)
 		notify.FailedDBList = append(notify.FailedDBList, db+" - "+message)
 		return make([]string, 0), make([]string, 0), err
@@ -253,14 +253,14 @@ func dumpDBWithTables(db, dst string) ([]string, []string, error) {
 		if db == "mysql" && table != "user" {
 			continue
 		}
-		filePath, name, err := dumpTable(db, table, oldDst) //TODO +
+		fPath, name, err := dumpTable(db, table, oldDst) //TODO +
 		if err != nil {
 			message := "Couldn't dump databases. Error: " + err.Error()
 			logger.Error(message)
 			notify.FailedDBList = append(notify.FailedDBList, db+" - table: "+table+" - "+message)
 			return nil, nil, err
 		}
-		dumpPaths = append(dumpPaths, filePath)
+		dumpPaths = append(dumpPaths, fPath)
 		names = append(names, name)
 	}
 	return dumpPaths, names, nil
