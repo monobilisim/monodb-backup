@@ -80,15 +80,15 @@ func sendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 			err := cmdMkdir.Run()
 			if err != nil {
 				cmdMkdir.Stderr = &stderr1
-				message := "Couldn't create folder " + newPath + " to upload backups at" + target.Host + ":" + dstPath + "\nError: " + err.Error() + " " + stderr1.String()
+				message := "Couldn't create folder " + newPath + " to upload backups at" + target.Host + ":" + dstPath + "\nError: " + err.Error() + " " + stderr1.String() + "\nStill following up in case the folder exists and this was just a connection error"
 				// notify.SendAlarm(message, true)
 				logger.Error(message)
 				lastDB = db
 				lastPath = newPath
 				lastHost = target.Host
-				return message, err
+			} else {
+				folderCreated = true
 			}
-			folderCreated = true
 		}
 	}
 
