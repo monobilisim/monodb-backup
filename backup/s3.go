@@ -53,15 +53,15 @@ func InitializeS3Session() {
 			tr := &http.Transport{
 				Proxy: http.ProxyFromEnvironment,
 				DialContext: (&net.Dialer{
-					Timeout:   30 * time.Second,
-					KeepAlive: 30 * time.Second,
+					Timeout:   60 * time.Second,
+					KeepAlive: 60 * time.Second,
 				}).DialContext,
 				MaxIdleConns:          256,
 				MaxIdleConnsPerHost:   16,
-				ResponseHeaderTimeout: time.Minute,
-				IdleConnTimeout:       time.Minute,
-				TLSHandshakeTimeout:   10 * time.Second,
-				ExpectContinueTimeout: 10 * time.Second,
+				ResponseHeaderTimeout: 30 * time.Minute,
+				IdleConnTimeout:       2 * time.Minute,
+				TLSHandshakeTimeout:   30 * time.Second,
+				ExpectContinueTimeout: 30 * time.Second,
 				DisableCompression:    true,
 			}
 			if s3Instance.Secure {
@@ -80,17 +80,21 @@ func InitializeS3Session() {
 			if s3Instance.InsecureSkipVerify {
 				tr.TLSClientConfig.InsecureSkipVerify = true
 			}
-			httpClient := &http.Client{Transport: tr}
+			httpClient := &http.Client{
+				Transport: tr,
+				Timeout:   0,
+			}
 
 			options = session.Options{
-				Profile:         "default",
-				EC2IMDSEndpoint: s3Instance.Endpoint,
+				Profile: "default",
 				Config: aws.Config{
-					Endpoint:         &s3Instance.Endpoint,
-					Region:           aws.String(s3Instance.Region),
-					Credentials:      credentials.NewStaticCredentials(s3Instance.AccessKey, s3Instance.SecretKey, ""),
-					S3ForcePathStyle: aws.Bool(true),
-					HTTPClient:       httpClient,
+					Endpoint:                      &s3Instance.Endpoint,
+					Region:                        aws.String(s3Instance.Region),
+					Credentials:                   credentials.NewStaticCredentials(s3Instance.AccessKey, s3Instance.SecretKey, ""),
+					S3ForcePathStyle:              aws.Bool(true),
+					S3DisableContentMD5Validation: aws.Bool(false),
+					HTTPClient:                    httpClient,
+					MaxRetries:                    aws.Int(3),
 				},
 			}
 		}
@@ -103,6 +107,7 @@ func InitializeS3Session() {
 		uploader := s3manager.NewUploader(sess, func(u *s3manager.Uploader) {
 			u.PartSize = 64 * 1024 * 1024
 			u.Concurrency = 10
+			u.LeavePartsOnError = false
 		})
 		uploaders = append(uploaders, uploaderStruct{s3Instance, uploader})
 	}
