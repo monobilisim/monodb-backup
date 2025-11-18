@@ -54,15 +54,16 @@ func InitializeS3Session() {
 				Proxy: http.ProxyFromEnvironment,
 				DialContext: (&net.Dialer{
 					Timeout:   60 * time.Second,
-					KeepAlive: 60 * time.Second,
+					KeepAlive: 30 * time.Second,
 				}).DialContext,
-				MaxIdleConns:          256,
-				MaxIdleConnsPerHost:   16,
+				MaxIdleConns:          100,
+				MaxIdleConnsPerHost:   10,
 				ResponseHeaderTimeout: 30 * time.Minute,
-				IdleConnTimeout:       2 * time.Minute,
+				IdleConnTimeout:       30 * time.Second,
 				TLSHandshakeTimeout:   30 * time.Second,
-				ExpectContinueTimeout: 30 * time.Second,
+				ExpectContinueTimeout: 10 * time.Second,
 				DisableCompression:    true,
+				DisableKeepAlives:     true,
 			}
 			if s3Instance.Secure {
 				tr.TLSClientConfig = &tls.Config{
@@ -88,13 +89,15 @@ func InitializeS3Session() {
 			options = session.Options{
 				Profile: "default",
 				Config: aws.Config{
-					Endpoint:                      &s3Instance.Endpoint,
+					Endpoint:                      aws.String(s3Instance.Endpoint),
 					Region:                        aws.String(s3Instance.Region),
 					Credentials:                   credentials.NewStaticCredentials(s3Instance.AccessKey, s3Instance.SecretKey, ""),
 					S3ForcePathStyle:              aws.Bool(true),
-					S3DisableContentMD5Validation: aws.Bool(false),
+					DisableSSL:                    aws.Bool(!s3Instance.Secure),
+					S3DisableContentMD5Validation: aws.Bool(true),
 					HTTPClient:                    httpClient,
-					MaxRetries:                    aws.Int(3),
+					MaxRetries:                    aws.Int(5),
+					DisableComputeChecksums:       aws.Bool(true),
 				},
 			}
 		}
@@ -106,8 +109,9 @@ func InitializeS3Session() {
 		}
 		uploader := s3manager.NewUploader(sess, func(u *s3manager.Uploader) {
 			u.PartSize = 64 * 1024 * 1024
-			u.Concurrency = 10
+			u.Concurrency = 1 // Signature hatalarını önlemek için sequential upload
 			u.LeavePartsOnError = false
+			u.MaxUploadParts = 10000
 		})
 		uploaders = append(uploaders, uploaderStruct{s3Instance, uploader})
 	}
