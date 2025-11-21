@@ -7,7 +7,8 @@ databases: # all databases if empty
 exclude: # databases to be excluded
   - db3
   - db4
-format: gzip
+format:
+  gzip
   # gzip or 7zip. gzip if empty
   # gzip for postgresql doesn't use gzip directly but uses custom format to take sql dump with the same algorithm as gzip
   # for mysql; if encryption is enabled, it will use 7zip even if the format is gzip
@@ -17,13 +18,17 @@ archivePass: # Password for encrypting backups. No encryption if empty
 rotation:
   enabled: true
   period: week # week or month - week db-week_1.sql.7z .. db-week_52.sql.7z - month db-january.sql.7z .. db-december.sql.7z
-  suffix: day  # day, hour or minute - day db-monday.sql.7z - hour db-monday-15.sql.7z - minute db-monday-15-30.sql.7z
+  suffix: day # day, hour or minute - day db-monday.sql.7z - hour db-monday-15.sql.7z - minute db-monday-15-30.sql.7z
+  keep:
+    daily: 7
+    weekly: 4
+    monthly: 3
 remote:
   isRemote: false # for mysql; even if isRemote false and you are backing up as the msyql user in the local machine, you still have to provide user and password/
   host: 127.0.0.1
   port: 5432
-  user: postgres        # necessary for mysql, even if isRemote false
-  password: password    # necessary for mysql, even if isRemote false
+  user: postgres # necessary for mysql, even if isRemote false
+  password: password # necessary for mysql, even if isRemote false
 backupType:
   type: minio
   info:
@@ -67,6 +72,8 @@ backupType:
   #         path: /var/backups
   #         port: 22
 notify:
+  UptimeAlarm: true
+  UptimeStartLimit: 6
   email:
     enabled: false
     onlyOnError: false

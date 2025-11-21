@@ -68,6 +68,13 @@ type Rotation struct {
 	Enabled bool
 	Period  string // week or month
 	Suffix  string // day db-monday.sql.7z - hour db-monday-15.sql.7z - minute db-monday-15-24.sql.7z
+	Keep    Keep
+}
+
+type Keep struct {
+	Daily   int
+	Weekly  int
+	Monthly int
 }
 
 type Remote struct {

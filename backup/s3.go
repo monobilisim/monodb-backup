@@ -13,17 +13,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/s3"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 type uploaderStruct struct {
 	instance config.BackupTypeInfo
-	uploader *s3manager.Uploader
+	client   *s3.Client
+	uploader *manager.Uploader
 }
 
 var uploaders []uploaderStruct
@@ -37,19 +37,19 @@ func mustGetSystemCertPool() *x509.CertPool {
 }
 
 func InitializeS3Session() {
-	var options session.Options
+	ctx := context.Background()
 
 	for _, s3Instance := range params.BackupType.Info {
-		if s3Instance.Endpoint == "" {
-			options = session.Options{
-				Profile: "default",
-				Config: aws.Config{
-					Region:      aws.String(s3Instance.Region),
-					Credentials: credentials.NewStaticCredentials(s3Instance.AccessKey, s3Instance.SecretKey, ""),
-				},
-			}
+		configOptions := []func(*awsconfig.LoadOptions) error{
+			awsconfig.WithRegion(s3Instance.Region),
+			awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+				s3Instance.AccessKey,
+				s3Instance.SecretKey,
+				"",
+			)),
+		}
 
-		} else {
+		if s3Instance.Endpoint != "" {
 			tr := &http.Transport{
 				Proxy: http.ProxyFromEnvironment,
 				DialContext: (&net.Dialer{
@@ -64,6 +64,7 @@ func InitializeS3Session() {
 				ExpectContinueTimeout: 10 * time.Second,
 				DisableCompression:    true,
 			}
+
 			if s3Instance.Secure {
 				tr.TLSClientConfig = &tls.Config{
 					MinVersion: tls.VersionTLS12,
@@ -78,33 +79,39 @@ func InitializeS3Session() {
 				}
 			}
 			if s3Instance.InsecureSkipVerify {
+				if tr.TLSClientConfig == nil {
+					tr.TLSClientConfig = &tls.Config{}
+				}
 				tr.TLSClientConfig.InsecureSkipVerify = true
 			}
-			httpClient := &http.Client{Transport: tr}
 
-			options = session.Options{
-				Profile:         "default",
-				EC2IMDSEndpoint: s3Instance.Endpoint,
-				Config: aws.Config{
-					Endpoint:         &s3Instance.Endpoint,
-					Region:           aws.String(s3Instance.Region),
-					Credentials:      credentials.NewStaticCredentials(s3Instance.AccessKey, s3Instance.SecretKey, ""),
-					S3ForcePathStyle: aws.Bool(true),
-					HTTPClient:       httpClient,
-				},
-			}
+			httpClient := &http.Client{Transport: tr}
+			configOptions = append(configOptions, awsconfig.WithHTTPClient(httpClient))
 		}
-		sess, err := session.NewSessionWithOptions(options)
+
+		cfg, err := awsconfig.LoadDefaultConfig(ctx, configOptions...)
 		if err != nil {
-			// notify.SendAlarm("Couldn't initialize S3 session. Error: "+err.Error(), true)
-			logger.Fatal(err)
+			logger.Fatal("Couldn't initialize S3 config: " + err.Error())
 			return
 		}
-		uploader := s3manager.NewUploader(sess, func(u *s3manager.Uploader) {
-			u.PartSize = 64 * 1024 * 1024
-			u.Concurrency = 10
+
+		client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+			o.UsePathStyle = true
+			if s3Instance.Endpoint != "" {
+				o.BaseEndpoint = aws.String(s3Instance.Endpoint)
+			}
 		})
-		uploaders = append(uploaders, uploaderStruct{s3Instance, uploader})
+
+		uploader := manager.NewUploader(client, func(u *manager.Uploader) {
+			u.PartSize = 5 * 1024 * 1024 // 5MB
+			u.Concurrency = 5
+		})
+
+		uploaders = append(uploaders, uploaderStruct{
+			instance: s3Instance,
+			client:   client,
+			uploader: uploader,
+		})
 	}
 }
 
@@ -115,7 +122,6 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 		file, err := os.Open(src)
 		if err != nil {
 			logger.Error("Couldn't open file " + src + " to read - Error: " + err.Error())
-			// notify.SendAlarm("Couldn't open file "+src+" to read - Error: "+err.Error(), true)
 			return err
 		}
 		defer file.Close()
@@ -125,20 +131,19 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 		src = db
 	}
 
-	_, err := s3Instance.uploader.UploadWithContext(ctx, &s3manager.UploadInput{
+	_, err := s3Instance.uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(dst),
 		Body:   reader,
 	})
 	if err != nil {
 		logger.Error("Couldn't upload " + src + " to S3\nBucket: " + bucketName + " path: " + dst + "\n Error: " + err.Error())
-		// notify.SendAlarm("Couldn't upload "+src+" to S3\nBucket: "+bucketName+" path: "+dst+"\n Error: "+err.Error(), true)
 		return err
 	}
+
 	message := "Successfully uploaded " + src + " to S3\nBucket: " + bucketName + " path: " + dst
 	logger.Info(message)
-	// notify.SendAlarm(message, false)
-	// itWorksNow(message, true)
+
 	if params.Rotation.Enabled {
 		if db == "mysql" {
 			db = db + "_users"
@@ -152,7 +157,7 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 			name = name + "." + extension[i]
 		}
 		if shouldRotate {
-			sourceObj, err := s3Instance.uploader.S3.GetObject(&s3.GetObjectInput{
+			sourceObj, err := s3Instance.client.GetObject(ctx, &s3.GetObjectInput{
 				Bucket: aws.String(bucketName),
 				Key:    aws.String(dst),
 			})
@@ -162,7 +167,7 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 			}
 			defer sourceObj.Body.Close()
 
-			_, err = s3Instance.uploader.Upload(&s3manager.UploadInput{
+			_, err = s3Instance.uploader.Upload(ctx, &s3.PutObjectInput{
 				Bucket: aws.String(bucketName),
 				Key:    aws.String(name),
 				Body:   sourceObj.Body,
@@ -181,14 +186,13 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 func uploadToS3(src, dst, db string) {
 	ctx := context.Background()
 	for _, s3Instance := range uploaders {
-		dst := nameWithPath(dst)
+		finalDst := nameWithPath(dst)
 		if s3Instance.instance.Path != "" {
-			dst = s3Instance.instance.Path + "/" + dst
+			finalDst = s3Instance.instance.Path + "/" + finalDst
 		}
-		err := uploadFileToS3(ctx, src, dst, db, nil, &s3Instance)
+		err := uploadFileToS3(ctx, src, finalDst, db, nil, &s3Instance)
 		if err != nil {
 			notify.FailedDBList = append(notify.FailedDBList, db+" - "+src+" - "+err.Error())
-			// itWorksNow("", false)
 		} else {
 			notify.SuccessfulDBList = append(notify.SuccessfulDBList, db+" - "+src)
 		}
