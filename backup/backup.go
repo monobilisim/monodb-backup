@@ -20,6 +20,9 @@ var (
 	mu                 sync.Mutex // Mutex to protect access to currentDB and currentDBStartTime
 )
 
+var Retrying = false
+var FailedDBNames []string
+
 func init() {
 	appStartTime = time.Now()
 }
@@ -46,20 +49,24 @@ func SendHourlyUptimeStatus() {
 	}
 }
 
-func getDBList() (dbList []string) {
+func getDBList() []string {
+	if Retrying {
+		dbList := FailedDBNames
+		notify.FailedDBList = nil
+		return dbList
+	}
 	switch params.Database {
 	case "postgresql":
-		dbList = getPSQLList()
+		return getPSQLList()
 	case "mysql":
-		dbList = getMySQLList()
+		return getMySQLList()
 	case "mssql":
-		dbList = getMSSQLList()
+		return getMSSQLList()
 	case "oracle":
 		return getOracleList()
 	default:
-		dbList = getPSQLList()
+		return getPSQLList()
 	}
-	return
 }
 
 func dumpAndUpload(db string, pipeWriters []*io.PipeWriter) error {
@@ -103,7 +110,7 @@ func Backup() {
 		now:    time.Now().Format("2006-01-02-150405"),
 	}
 
-	if len(params.Databases) == 0 {
+	if len(params.Databases) == 0 || Retrying {
 		logger.Info("Getting database list...")
 		databases := getDBList()
 		params.Databases = databases
@@ -173,6 +180,7 @@ func Backup() {
 			if err != nil {
 				// notify.SendAlarm("Problem during backing up "+db+" - Error: "+err.Error(), true)
 				notify.FailedDBList = append(notify.FailedDBList, db+" - Error: "+err.Error())
+				FailedDBNames = append(FailedDBNames, db)
 				// itWorksNow("", false)
 			} else {
 				logger.Info("Successfully backed up database:" + db + " at " + filePath)
@@ -241,6 +249,7 @@ func uploadWhileDumping(db string) {
 			writer.Close()
 		}
 		notify.FailedDBList = append(notify.FailedDBList, db+" - Dump Error: "+err.Error())
+		FailedDBNames = append(FailedDBNames, db)
 		return
 	}
 
@@ -254,6 +263,7 @@ func uploadWhileDumping(db string) {
 			if uploadErr != nil {
 				logger.Error(strconv.Itoa(i+1) + ") " + db + " - " + "Couldn't upload to S3: " + uploaders[i].instance.Endpoint + "  - Error: " + uploadErr.Error())
 				notify.FailedDBList = append(notify.FailedDBList, db+" to "+uploaders[i].instance.Endpoint+" - Error: "+uploadErr.Error())
+				FailedDBNames = append(FailedDBNames, db)
 			} else {
 				message := strconv.Itoa(i+1) + ") " + db + " - " + "Successfully uploaded to S3: " + uploaders[i].instance.Endpoint
 				logger.Info(message)
@@ -262,6 +272,7 @@ func uploadWhileDumping(db string) {
 		case <-ctx.Done():
 			logger.Error(strconv.Itoa(i+1) + ") " + db + " - Upload timed out or was cancelled")
 			notify.FailedDBList = append(notify.FailedDBList, db+" to "+uploaders[i].instance.Endpoint+" - Error: timeout")
+			FailedDBNames = append(FailedDBNames, db)
 		}
 	}
 }
@@ -277,6 +288,7 @@ func upload(name, db, filePath string) {
 			if err != nil {
 				// itWorksNow("", false)
 				notify.FailedDBList = append(notify.FailedDBList, db+" - "+name+" - Error: "+err.Error())
+				FailedDBNames = append(FailedDBNames, db)
 			} else {
 				notify.SuccessfulDBList = append(notify.SuccessfulDBList, db+" - "+name)
 			}
@@ -287,6 +299,7 @@ func upload(name, db, filePath string) {
 			if err != nil {
 				// itWorksNow("", false)
 				notify.FailedDBList = append(notify.FailedDBList, db+" - "+message)
+				FailedDBNames = append(FailedDBNames, db)
 			} else {
 				notify.SuccessfulDBList = append(notify.SuccessfulDBList, db+" - "+name)
 			}

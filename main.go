@@ -71,5 +71,9 @@ func initBackup() {
 		backup.InitializeS3Session()
 	}
 	backup.Backup()
+	if len(notify.FailedDBList) > 0 && config.Parameters.Retry {
+		backup.Retrying = true
+		backup.Backup()
+	}
 	notify.SendSingleEntityAlarm()
 }

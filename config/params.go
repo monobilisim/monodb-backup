@@ -23,6 +23,7 @@ type Params struct {
 	Remote            Remote
 	RunEveryCron      string
 	BackupType        BackupType
+	Retry             bool
 	Notify            struct {
 		UptimeAlarm      bool
 		UptimeStartLimit int
