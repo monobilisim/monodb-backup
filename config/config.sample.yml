@@ -16,6 +16,7 @@ backupAsTables: false # Backup MySQL databases as tables
 removeLocal: true
 archivePass: # Password for encrypting backups. No encryption if empty
 retry: false
+partSize: 64
 rotation:
   enabled: true
   period: week # week or month - week db-week_1.sql.7z .. db-week_52.sql.7z - month db-january.sql.7z .. db-december.sql.7z

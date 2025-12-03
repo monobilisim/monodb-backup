@@ -24,6 +24,7 @@ type Params struct {
 	RunEveryCron      string
 	BackupType        BackupType
 	Retry             bool
+	PartSize          int64
 	Notify            struct {
 		UptimeAlarm      bool
 		UptimeStartLimit int
@@ -182,5 +183,8 @@ func ParseParams(configFile *string) {
 
 	decodeB64Vars()
 
+	if Parameters.PartSize == 0 {
+		Parameters.PartSize = 64
+	}
 	Parameters.Fqdn, _ = os.Hostname()
 }

@@ -103,7 +103,7 @@ func InitializeS3Session() {
 		})
 
 		uploader := manager.NewUploader(client, func(u *manager.Uploader) {
-			u.PartSize = 64 * 1024 * 1024
+			u.PartSize = config.Parameters.PartSize * 1024 * 1024
 			u.Concurrency = 10
 		})
 
