@@ -9,23 +9,24 @@ import (
 )
 
 type Params struct {
-	BackupDestination string
-	Database          string
-	Databases         []string
-	Exclude           []string
-	Format            string // 7z, gz, default gz(pg_dump -Fc option - no further compression)
-	BackupAsTables    bool
-	RemoveLocal       bool
-	ArchivePass       string
-	CtxCancel         uint8
-	Base64            bool // Remote.Host, Remote.User, Remote.Password, Target.Host, Target.Password
-	Rotation          Rotation
-	Remote            Remote
-	RunEveryCron      string
-	BackupType        BackupType
-	Retry             bool
-	PartSize          int64
-	Notify            struct {
+	BackupDestination      string
+	Database               string
+	Databases              []string
+	Exclude                []string
+	Format                 string // 7z, gz, default gz(pg_dump -Fc option - no further compression)
+	BackupAsTables         bool
+	RemoveLocal            bool
+	ArchivePass            string
+	CtxCancel              uint8
+	Base64                 bool // Remote.Host, Remote.User, Remote.Password, Target.Host, Target.Password
+	Rotation               Rotation
+	Remote                 Remote
+	RunEveryCron           string
+	BackupType             BackupType
+	Retry                  bool
+	PartSize               int64
+	MaxConcurrentProcesses int // Maximum number of concurrent dump processes to prevent resource exhaustion
+	Notify                 struct {
 		UptimeAlarm      bool
 		UptimeStartLimit int
 		Email            struct {
@@ -186,5 +187,10 @@ func ParseParams(configFile *string) {
 	if Parameters.PartSize == 0 {
 		Parameters.PartSize = 64
 	}
+
+	if Parameters.MaxConcurrentProcesses == 0 {
+		Parameters.MaxConcurrentProcesses = 10 // Default to 10 concurrent processes
+	}
+
 	Parameters.Fqdn, _ = os.Hostname()
 }

@@ -11,9 +11,26 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	_ "github.com/go-sql-driver/mysql"
 )
+
+// processSemaphore controls the number of concurrent dump processes
+var processSemaphore chan struct{}
+var semaphoreOnce sync.Once
+
+// initSemaphore initializes the process semaphore based on config
+func initSemaphore() {
+	semaphoreOnce.Do(func() {
+		maxProcesses := params.MaxConcurrentProcesses
+		if maxProcesses <= 0 {
+			maxProcesses = 10 // Fallback default
+		}
+		processSemaphore = make(chan struct{}, maxProcesses)
+		logger.Info("Initialized process semaphore with max " + strconv.Itoa(maxProcesses) + " concurrent processes")
+	})
+}
 
 func isCommandAvailable(name string) (bool, string) {
 	path, err := exec.LookPath(name)
@@ -232,6 +249,9 @@ func dumpAndUploadMySQL(db string, pipeWriters []*io.PipeWriter) error {
 }
 
 func dumpDBWithTables(db, dst string) ([]string, []string, error) {
+	// Initialize semaphore on first use
+	initSemaphore()
+
 	var dumpPaths, names []string
 	oldDst := dst
 	if err := os.MkdirAll(dst+"/"+db, 0770); err != nil {
@@ -249,20 +269,61 @@ func dumpDBWithTables(db, dst string) ([]string, []string, error) {
 	}
 	dumpPaths = append(dumpPaths, metaFile)
 	names = append(names, filepath.Dir(dumpName(db, params.Rotation, ""))+"/"+db+".meta")
+
+	// Use goroutines with semaphore to control concurrency
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var firstError error
+
+	type dumpResult struct {
+		fPath string
+		name  string
+	}
+	results := make([]dumpResult, 0, len(tableList))
+
 	for _, table := range tableList {
 		if db == "mysql" && table != "user" {
 			continue
 		}
-		fPath, name, err := dumpTable(db, table, oldDst) //TODO +
-		if err != nil {
-			message := "Couldn't dump databases. Error: " + err.Error()
-			logger.Error(message)
-			notify.FailedDBList = append(notify.FailedDBList, db+" - table: "+table+" - "+message)
-			return nil, nil, err
-		}
-		dumpPaths = append(dumpPaths, fPath)
-		names = append(names, name)
+
+		wg.Add(1)
+		go func(table string) {
+			defer wg.Done()
+
+			// Acquire semaphore slot
+			processSemaphore <- struct{}{}
+			defer func() { <-processSemaphore }() // Release semaphore slot
+
+			fPath, name, err := dumpTable(db, table, oldDst)
+			
+			mu.Lock()
+			defer mu.Unlock()
+
+			if err != nil {
+				if firstError == nil {
+					firstError = err
+				}
+				message := "Couldn't dump table " + table + ". Error: " + err.Error()
+				logger.Error(message)
+				notify.FailedDBList = append(notify.FailedDBList, db+" - table: "+table+" - "+message)
+			} else {
+				results = append(results, dumpResult{fPath: fPath, name: name})
+			}
+		}(table)
 	}
+
+	wg.Wait()
+
+	if firstError != nil {
+		return nil, nil, firstError
+	}
+
+	// Collect results
+	for _, result := range results {
+		dumpPaths = append(dumpPaths, result.fPath)
+		names = append(names, result.name)
+	}
+
 	return dumpPaths, names, nil
 }
 
