@@ -221,6 +221,11 @@ func dumpAndUploadMySQL(db string, pipeWriters []*io.PipeWriter) error {
 		logger.Error("Couldn't compress " + db + " - Error: " + err.Error())
 		return err
 	}
+	err = cmd.Wait()
+	if err != nil {
+		logger.Error("mysqldump process failed for " + db + " - Error: " + err.Error())
+		return err
+	}
 	n, _ := stderr2.Read(output)
 	if n > 0 {
 		if !strings.Contains(string(string(output[:n])), "[Warning] Using a password on the command line interface can be insecure.") {
@@ -423,6 +428,11 @@ func mysqlDump(db, name, dst string, encrypted bool, mysqlArgs []string) (string
 			logger.Error("Couldn't compress " + db + " - Error: " + err.Error() + " - " + stderr.String())
 			return "", "", err
 		}
+	}
+	err = cmd.Wait()
+	if err != nil {
+		logger.Error("mysqldump process failed for " + db + " - Error: " + err.Error())
+		return "", "", err
 	}
 	n, _ := stderr2.Read(output)
 	if n > 0 {
