@@ -295,7 +295,7 @@ func dumpDBWithTables(db, dst string) ([]string, []string, error) {
 			defer func() { <-processSemaphore }() // Release semaphore slot
 
 			fPath, name, err := dumpTable(db, table, oldDst)
-			
+
 			mu.Lock()
 			defer mu.Unlock()
 
@@ -467,6 +467,12 @@ func mysqlDump(db, name, dst string, encrypted bool, mysqlArgs []string) (string
 			logger.Error("Couldn't compress " + db + " - Error: " + err.Error())
 			return "", "", err
 		}
+		// Zombi process engelleme: mysqldump/mariadb-dump process'ini topla
+		err = cmd.Wait()
+		if err != nil {
+			logger.Error("mysqldump process failed for " + db + " - Error: " + err.Error())
+			return "", "", err
+		}
 	} else {
 		name = name + ".sql.7z"
 		dumpPath = dst + "/" + name
@@ -482,6 +488,12 @@ func mysqlDump(db, name, dst string, encrypted bool, mysqlArgs []string) (string
 		err = cmd2.Run()
 		if err != nil {
 			logger.Error("Couldn't compress " + db + " - Error: " + err.Error() + " - " + stderr.String())
+			return "", "", err
+		}
+		// Zombi process engelleme: mysqldump/mariadb-dump process'ini topla
+		err = cmd.Wait()
+		if err != nil {
+			logger.Error("mysqldump process failed for " + db + " - Error: " + err.Error())
 			return "", "", err
 		}
 	}
