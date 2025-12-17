@@ -181,7 +181,7 @@ func dumpAndUploadMySQL(db string, pipeWriters []*io.PipeWriter) error {
 		mysqlArgs = append(mysqlArgs, "-u"+params.Remote.User, "-p"+params.Remote.Password)
 	}
 
-	mysqlArgs = append(mysqlArgs, "--single-transaction", "--quick", "--skip-lock-tables", "--routines", "--triggers", "--events", db)
+	mysqlArgs = append(mysqlArgs, "--force", "--single-transaction", "--quick", "--skip-lock-tables", "--routines", "--triggers", "--events", db)
 
 	if db == "mysql" {
 		mysqlArgs = append(mysqlArgs, "user")
@@ -263,7 +263,7 @@ func dumpDBWithTables(db, dst string) ([]string, []string, error) {
 			message := "Couldn't dump databases. Error: " + err.Error()
 			logger.Error(message)
 			notify.FailedDBList = append(notify.FailedDBList, db+" - table: "+table+" - "+message)
-			return nil, nil, err
+			continue
 		}
 		dumpPaths = append(dumpPaths, fPath)
 		names = append(names, name)
@@ -339,6 +339,7 @@ func mysqlDump(db, name, dst string, encrypted bool, mysqlArgs []string) (string
 	var cmd *exec.Cmd
 	var cmd2 *exec.Cmd
 	var stderr bytes.Buffer
+	var mysqldumpStderr bytes.Buffer
 	var format string
 
 	mariadb, dumpCommandTMP := isCommandAvailable("mariadb-dump")
@@ -353,7 +354,7 @@ func mysqlDump(db, name, dst string, encrypted bool, mysqlArgs []string) (string
 	} else {
 		format = "7zip"
 	}
-	output := make([]byte, 100)
+
 	var dumpPath string
 	cmd = exec.Command(dumpCommand, mysqlArgs...)
 	stdout, err := cmd.StdoutPipe()
@@ -361,11 +362,7 @@ func mysqlDump(db, name, dst string, encrypted bool, mysqlArgs []string) (string
 		logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
 		return "", "", err
 	}
-	stderr2, err := cmd.StderrPipe()
-	if err != nil {
-		logger.Error("Couldn't back up " + db + " - Error: " + err.Error())
-		return "", "", err
-	}
+	cmd.Stderr = &mysqldumpStderr
 
 	err = cmd.Start()
 	if err != nil {
@@ -431,14 +428,15 @@ func mysqlDump(db, name, dst string, encrypted bool, mysqlArgs []string) (string
 	}
 	err = cmd.Wait()
 	if err != nil {
-		logger.Error("mysqldump process failed for " + db + " - Error: " + err.Error())
+		logger.Error("mysqldump process failed for " + db + " - Error: " + err.Error() + " - " + mysqldumpStderr.String())
 		return "", "", err
 	}
-	n, _ := stderr2.Read(output)
-	if n > 0 {
-		if !strings.Contains(string(string(output[:n])), "[Warning] Using a password on the command line interface can be insecure.") {
-			logger.Error("Couldn't back up " + db + " - Error: " + string(string(output[:n])))
-			return dumpPath, name, errors.New(string(output[:n]))
+
+	if mysqldumpStderr.Len() > 0 {
+		outputStr := mysqldumpStderr.String()
+		if !strings.Contains(outputStr, "[Warning] Using a password on the command line interface can be insecure.") {
+			logger.Error("Couldn't back up " + db + " - Error: " + outputStr)
+			return dumpPath, name, errors.New(outputStr)
 		}
 	}
 	return dumpPath, name, nil
