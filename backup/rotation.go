@@ -64,16 +64,24 @@ func dumpName(db string, rotation config.Rotation, buName string) string {
 	}
 }
 
-func updateRotatedTimestamp(db string) {
+func updateRotatedTimestamp(db, targetID string) {
 	timestamp := time.Now().Format(time.RFC3339)
-	err := os.WriteFile("/tmp/monodb-rotated-"+db, []byte(timestamp), 0644)
+	filename := "/tmp/monodb-rotated-" + db
+	if targetID != "" {
+		filename += "-" + sanitize(targetID)
+	}
+	err := os.WriteFile(filename, []byte(timestamp), 0644)
 	if err != nil {
 		logger.Error("Failed to update rotated timestamp: " + err.Error())
 	}
 }
 
-func isRotated(db string) bool {
-	timestamp, err := os.ReadFile("/tmp/monodb-rotated-" + db)
+func isRotated(db, targetID string) bool {
+	filename := "/tmp/monodb-rotated-" + db
+	if targetID != "" {
+		filename += "-" + sanitize(targetID)
+	}
+	timestamp, err := os.ReadFile(filename)
 	if err != nil {
 		logger.Info("Failed to read rotated timestamp: " + err.Error())
 		return false
@@ -86,8 +94,8 @@ func isRotated(db string) bool {
 	return timestampTime.Add(23 * time.Hour).After(time.Now())
 }
 
-func rotate(db string) (bool, string) {
-	if isRotated(db) {
+func rotate(db, targetID string) (bool, string) {
+	if isRotated(db, targetID) {
 		return false, ""
 	}
 	t := time.Now()
@@ -108,6 +116,16 @@ func rotate(db string) (bool, string) {
 		}
 	}
 	return false, ""
+}
+
+func sanitize(text string) string {
+	var result string
+	for _, char := range text {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '-' || char == '_' {
+			result += string(char)
+		}
+	}
+	return result
 }
 
 func nameWithPath(name string) (newName string) {

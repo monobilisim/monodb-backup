@@ -150,7 +150,8 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 		if db == "mysql" {
 			db = db + "_users"
 		}
-		shouldRotate, name := rotate(db)
+		targetID := s3Instance.instance.Bucket + "-" + s3Instance.instance.Endpoint
+		shouldRotate, name := rotate(db, targetID)
 		if s3Instance.instance.Path != "" {
 			name = s3Instance.instance.Path + "/" + name
 		}
@@ -178,7 +179,7 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 				logger.Error("Couldn't create copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name + "\n Error: " + err.Error())
 				return err
 			}
-			updateRotatedTimestamp(db)
+			updateRotatedTimestamp(db, targetID)
 			logger.Info("Successfully created a copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name)
 		}
 

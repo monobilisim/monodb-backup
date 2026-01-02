@@ -59,7 +59,7 @@ func SendSFTP(srcPath, dstPath, db string, target config.Target) error {
 	}
 
 	if params.Rotation.Enabled {
-		shouldRotate, newDst := rotate(db)
+		shouldRotate, newDst := rotate(db, target.Host)
 		if shouldRotate {
 			extension := strings.Split(dstPath, ".")
 			for i := 1; i < len(extension); i++ {
@@ -70,7 +70,7 @@ func SendSFTP(srcPath, dstPath, db string, target config.Target) error {
 			if err != nil {
 				return err
 			}
-			updateRotatedTimestamp(db)
+			updateRotatedTimestamp(db, target.Host)
 		}
 	}
 

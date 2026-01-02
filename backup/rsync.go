@@ -29,7 +29,7 @@ func SendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 
 	if params.Rotation.Enabled {
 		extension := strings.Split(dstPath, ".")
-		shouldRotate, dstPath := rotate(extension[0])
+		shouldRotate, dstPath := rotate(extension[0], target.Host)
 		for i := 1; i < len(extension); i++ {
 			dstPath = dstPath + "." + extension[i]
 		}
@@ -41,7 +41,7 @@ func SendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 			return sendRsync(srcPath, dstPath, db, target)
 		}
 		rotating = false
-		updateRotatedTimestamp(db)
+		updateRotatedTimestamp(db, target.Host)
 	}
 
 	if params.Rotation.Keep.Daily > 0 || params.Rotation.Keep.Weekly > 0 || params.Rotation.Keep.Monthly > 0 {
