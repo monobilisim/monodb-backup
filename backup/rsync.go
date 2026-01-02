@@ -5,6 +5,8 @@ import (
 	"monodb-backup/config"
 	"os/exec"
 	"strings"
+
+	"github.com/pkg/sftp"
 )
 
 var lastDB, lastHost, lastPath string
@@ -41,6 +43,25 @@ func SendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 		rotating = false
 		updateRotatedTimestamp(db)
 	}
+
+	if params.Rotation.Keep.Daily > 0 || params.Rotation.Keep.Weekly > 0 || params.Rotation.Keep.Monthly > 0 {
+		client, err := ConnectToSSH(target)
+		if err != nil {
+			logger.Error("Could not connect to SSH for cleanup: " + err.Error())
+		} else {
+			defer client.Close()
+			sftpCli, err := sftp.NewClient(client)
+			if err != nil {
+				logger.Error("Could not create SFTP client for cleanup: " + err.Error())
+			} else {
+				defer sftpCli.Close()
+				if err := CleanupSFTP(target, sftpCli, db); err != nil {
+					logger.Error("Error during Rsync cleanup: " + err.Error())
+				}
+			}
+		}
+	}
+
 	return "", nil
 }
 
@@ -55,8 +76,6 @@ func sendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 		newPath = newPath + "/" + fullPath[i]
 	}
 
-	// We need folderCreated in case if the folder creation failed at the first table
-	// So even if the folder creation failed at the first table, it will be created this time
 	if lastDB != db && folderCreated {
 		folderCreated = false
 	}
@@ -67,7 +86,6 @@ func sendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 		if err != nil {
 			cmdMkdir.Stderr = &stderr1
 			message := "Couldn't create folder " + newPath + " to upload backups at" + target.Host + ":" + dstPath + "\nError: " + err.Error() + " " + stderr1.String()
-			// notify.SendAlarm(message, true)
 			logger.Error(message)
 			lastDB = db
 			lastPath = newPath

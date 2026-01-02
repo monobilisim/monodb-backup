@@ -6,6 +6,7 @@ import (
 	"io"
 	"monodb-backup/notify"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -197,6 +198,12 @@ func Backup() {
 			} else {
 				logger.Info("Dump file at " + params.BackupDestination + "/" + db + " successfully deleted.")
 			}
+		} else {
+			if params.Rotation.Keep.Daily > 0 || params.Rotation.Keep.Weekly > 0 || params.Rotation.Keep.Monthly > 0 {
+				if err := cleanupLocal(); err != nil {
+					logger.Error("Error during local cleanup for " + db + ": " + err.Error())
+				}
+			}
 		}
 	}
 	mu.Lock()
@@ -305,4 +312,95 @@ func upload(name, db, filePath string) {
 			}
 		}
 	}
+}
+
+func cleanupLocal() error {
+	root := strings.TrimSuffix(params.BackupDestination, "/")
+
+	cleanupDir := func(dir string, keep int, period string) error {
+		if keep == 0 {
+			return nil
+		}
+		path := filepath.Join(root, dir)
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+
+		var backups []BackupFile
+		var recurseDirs []string
+
+		for _, e := range entries {
+			if e.IsDir() {
+				recurseDirs = append(recurseDirs, e.Name())
+				continue
+			}
+			info, err := e.Info()
+			if err != nil {
+				continue
+			}
+
+			backups = append(backups, BackupFile{
+				Name: e.Name(),
+				Time: info.ModTime(),
+				Path: filepath.Join(path, e.Name()),
+			})
+		}
+
+		for _, subDir := range recurseDirs {
+			subPath := filepath.Join(path, subDir)
+			subEntries, err := os.ReadDir(subPath)
+			if err != nil {
+				continue
+			}
+
+			for _, se := range subEntries {
+				if se.IsDir() {
+					continue
+				}
+				info, err := se.Info()
+				if err != nil {
+					continue
+				}
+
+				backups = append(backups, BackupFile{
+					Name: se.Name(),
+					Time: info.ModTime(),
+					Path: filepath.Join(subPath, se.Name()),
+				})
+			}
+		}
+
+		toDelete := getFilesToDelete(backups, period, keep)
+		for _, f := range toDelete {
+			err := os.Remove(f.Path)
+			if err != nil {
+				logger.Error("Failed to delete old local backup " + f.Path + ": " + err.Error())
+			} else {
+				logger.Info("Deleted old local backup: " + f.Path)
+			}
+		}
+		return nil
+	}
+
+	if params.Rotation.Keep.Daily > 0 {
+		if err := cleanupDir("Daily", params.Rotation.Keep.Daily, "daily"); err != nil {
+			return err
+		}
+	}
+	if params.Rotation.Keep.Weekly > 0 {
+		if err := cleanupDir("Weekly", params.Rotation.Keep.Weekly, "weekly"); err != nil {
+			return err
+		}
+	}
+	if params.Rotation.Keep.Monthly > 0 {
+		if err := cleanupDir("Monthly", params.Rotation.Keep.Monthly, "monthly"); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

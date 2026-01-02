@@ -14,35 +14,14 @@ import (
 func SendSFTP(srcPath, dstPath, db string, target config.Target) error {
 	dstPath = target.Path + "/" + nameWithPath(dstPath)
 	logger.Info("SFTP transfer started.\n Source: " + srcPath + " - Destination: " + target.Host + ":" + dstPath)
-	sock, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
+	client, err := ConnectToSSH(target)
 	if err != nil {
-		logger.Error("Couldn't get environment variable SSH_AUTH_SOCK - Error: " + err.Error())
-		// notify.SendAlarm("Couldn't upload backup "+srcPath+" to "+target.Host+":"+dstPath+"\nCouldn't get environment variable SSH_AUTH_SOCK - Error: "+err.Error(), true)
 		return err
 	}
-
-	sockAgent := agent.NewClient(sock)
-
-	signers, err := sockAgent.Signers()
-	if err != nil {
-		logger.Error("Couldn't get signers for ssh keys - Error: " + err.Error())
-		// notify.SendAlarm("Couldn't upload backup "+srcPath+" to "+target.Host+":"+dstPath+"\nCouldn't get signers for ssh keys - Error: "+err.Error(), true)
-		return err
-	}
-	auths := []ssh.AuthMethod{ssh.PublicKeys(signers...)}
-
-	sshConfig := &ssh.ClientConfig{
-		User:            target.User,
-		Auth:            auths,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-
-	client, _ := ssh.Dial("tcp", target.Host+":"+target.Port, sshConfig)
 	defer func() {
 		err = client.Close()
 		if err != nil {
 			logger.Error("Couldn't close SSH client - Error: " + err.Error())
-			// notify.SendAlarm("Couldn't close SSH client - Error: "+err.Error(), true)
 		}
 	}()
 
@@ -94,6 +73,87 @@ func SendSFTP(srcPath, dstPath, db string, target config.Target) error {
 			updateRotatedTimestamp(db)
 		}
 	}
+
+	if params.Rotation.Keep.Daily > 0 || params.Rotation.Keep.Weekly > 0 || params.Rotation.Keep.Monthly > 0 {
+		if err := CleanupSFTP(target, sftpCli, db); err != nil {
+			logger.Error("Error during SFTP cleanup: " + err.Error())
+		}
+	}
+
+	return nil
+}
+
+func CleanupSFTP(target config.Target, client *sftp.Client, db string) error {
+	cleanupDir := func(dir string, keep int, period string) error {
+		if keep == 0 {
+			return nil
+		}
+
+		realPath := target.Path + "/" + dir
+		files, err := client.ReadDir(realPath)
+		if err != nil {
+			return nil
+		}
+
+		var backups []BackupFile
+		var recurseDirs []string
+
+		for _, f := range files {
+			if f.IsDir() {
+				recurseDirs = append(recurseDirs, f.Name())
+				continue
+			}
+			backups = append(backups, BackupFile{
+				Name: f.Name(),
+				Time: f.ModTime(),
+				Path: realPath + "/" + f.Name(),
+			})
+		}
+
+		for _, subDir := range recurseDirs {
+			subPath := realPath + "/" + subDir
+			subFiles, err := client.ReadDir(subPath)
+			if err != nil {
+				continue
+			}
+			for _, f := range subFiles {
+				if !f.IsDir() {
+					backups = append(backups, BackupFile{
+						Name: f.Name(),
+						Time: f.ModTime(),
+						Path: subPath + "/" + f.Name(),
+					})
+				}
+			}
+		}
+
+		toDelete := getFilesToDelete(backups, period, keep)
+		for _, f := range toDelete {
+			err := client.Remove(f.Path)
+			if err != nil {
+				logger.Error("Failed to delete old backup " + f.Path + ": " + err.Error())
+			} else {
+				logger.Info("Deleted old backup: " + f.Path)
+			}
+		}
+		return nil
+	}
+
+	if params.Rotation.Keep.Daily > 0 {
+		if err := cleanupDir("Daily", params.Rotation.Keep.Daily, "daily"); err != nil {
+			return err
+		}
+	}
+	if params.Rotation.Keep.Weekly > 0 {
+		if err := cleanupDir("Weekly", params.Rotation.Keep.Weekly, "weekly"); err != nil {
+			return err
+		}
+	}
+	if params.Rotation.Keep.Monthly > 0 {
+		if err := cleanupDir("Monthly", params.Rotation.Keep.Monthly, "monthly"); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -134,4 +194,33 @@ func sendOverSFTP(srcPath, dstPath string, src *os.File, target config.Target, s
 	// notify.SendAlarm(message, false)
 	// itWorksNow(message, true)
 	return nil
+}
+
+func ConnectToSSH(target config.Target) (*ssh.Client, error) {
+	port := target.Port
+	if port == "" {
+		port = "22"
+	}
+	sock, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
+	if err != nil {
+		logger.Error("Couldn't get environment variable SSH_AUTH_SOCK - Error: " + err.Error())
+		return nil, err
+	}
+
+	sockAgent := agent.NewClient(sock)
+
+	signers, err := sockAgent.Signers()
+	if err != nil {
+		logger.Error("Couldn't get signers for ssh keys - Error: " + err.Error())
+		return nil, err
+	}
+	auths := []ssh.AuthMethod{ssh.PublicKeys(signers...)}
+
+	sshConfig := &ssh.ClientConfig{
+		User:            target.User,
+		Auth:            auths,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+
+	return ssh.Dial("tcp", target.Host+":"+port, sshConfig)
 }

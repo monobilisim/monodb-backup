@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 type uploaderStruct struct {
@@ -179,8 +181,99 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 			updateRotatedTimestamp(db)
 			logger.Info("Successfully created a copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name)
 		}
+
+		if params.Rotation.Keep.Daily > 0 || params.Rotation.Keep.Weekly > 0 || params.Rotation.Keep.Monthly > 0 {
+			err := cleanupS3(ctx, s3Instance)
+			if err != nil {
+				logger.Error("Error during S3 cleanup: " + err.Error())
+			}
+		}
 	}
 	return nil
+}
+
+func cleanupS3(ctx context.Context, s3Instance *uploaderStruct) error {
+	bucketName := s3Instance.instance.Bucket
+
+	cleanupPrefix := func(prefix string, keep int, period string) error {
+		if keep == 0 {
+			return nil
+		}
+
+		realPrefix := prefix
+		if s3Instance.instance.Path != "" {
+			realPrefix = s3Instance.instance.Path + "/" + prefix
+		}
+
+		var backups []BackupFile
+		paginator := s3.NewListObjectsV2Paginator(s3Instance.client, &s3.ListObjectsV2Input{
+			Bucket: aws.String(bucketName),
+			Prefix: aws.String(realPrefix),
+		})
+
+		for paginator.HasMorePages() {
+			page, err := paginator.NextPage(ctx)
+			if err != nil {
+				return err
+			}
+			for _, obj := range page.Contents {
+				if obj.LastModified != nil {
+					backups = append(backups, BackupFile{
+						Name: *obj.Key,
+						Time: *obj.LastModified,
+						Path: *obj.Key,
+					})
+				}
+			}
+		}
+
+		toDelete := getFilesToDelete(backups, period, keep)
+		if len(toDelete) > 0 {
+			var objects []types.ObjectIdentifier
+			for _, f := range toDelete {
+				objects = append(objects, types.ObjectIdentifier{Key: aws.String(f.Path)})
+			}
+
+			for i := 0; i < len(objects); i += 1000 {
+				end := i + 1000
+				if end > len(objects) {
+					end = len(objects)
+				}
+
+				_, err := s3Instance.client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+					Bucket: aws.String(bucketName),
+					Delete: &types.Delete{
+						Objects: objects[i:end],
+						Quiet:   aws.Bool(true),
+					},
+				})
+				if err != nil {
+					return err
+				}
+				logger.Info("Deleted " + strconv.Itoa(len(objects[i:end])) + " old backups from S3 prefix: " + realPrefix)
+			}
+		}
+		return nil
+	}
+
+	if params.Rotation.Keep.Daily > 0 {
+		if err := cleanupPrefix("Daily/", params.Rotation.Keep.Daily, "daily"); err != nil {
+			return err
+		}
+	}
+	if params.Rotation.Keep.Weekly > 0 {
+		if err := cleanupPrefix("Weekly/", params.Rotation.Keep.Weekly, "weekly"); err != nil {
+			return err
+		}
+	}
+	if params.Rotation.Keep.Monthly > 0 {
+		if err := cleanupPrefix("Monthly/", params.Rotation.Keep.Monthly, "monthly"); err != nil {
+			return err
+		}
+	}
+
+	return nil
+
 }
 
 func uploadToS3(src, dst, db string) {
