@@ -23,18 +23,9 @@ func getFilesToDelete(files []BackupFile, period string, keep int) []BackupFile 
 		return toDelete
 	}
 
-	if period == "daily" {
-		cutoff := time.Now().AddDate(0, 0, -keep)
-		for _, f := range files {
-			if f.Time.Before(cutoff) {
-				toDelete = append(toDelete, f)
-			}
-		}
-	} else {
-		if len(files) > keep {
-			sort.Sort(ByTime(files))
-			toDelete = append(toDelete, files[keep:]...)
-		}
+	if len(files) > keep {
+		sort.Sort(ByTime(files))
+		toDelete = append(toDelete, files[keep:]...)
 	}
 	return toDelete
 }

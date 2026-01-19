@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -228,7 +229,27 @@ func cleanupS3(ctx context.Context, s3Instance *uploaderStruct) error {
 			}
 		}
 
-		toDelete := getFilesToDelete(backups, period, keep)
+		var toDelete []BackupFile
+		re := regexp.MustCompile(`(.+)-(week_\d+|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Mon|Tue|Wed|Thu|Fri|Sat|Sun)`)
+
+		grouped := make(map[string][]BackupFile)
+		for _, f := range backups {
+			parts := strings.Split(f.Name, "/")
+			filename := parts[len(parts)-1]
+			dbName := ""
+			matches := re.FindStringSubmatch(filename)
+			if len(matches) > 1 {
+				dbName = matches[1]
+			} else {
+				dbName = filename
+			}
+			grouped[dbName] = append(grouped[dbName], f)
+		}
+
+		for _, group := range grouped {
+			toDelete = append(toDelete, getFilesToDelete(group, period, keep)...)
+		}
+
 		if len(toDelete) > 0 {
 			var objects []types.ObjectIdentifier
 			for _, f := range toDelete {

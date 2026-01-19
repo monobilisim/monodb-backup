@@ -4,6 +4,7 @@ import (
 	"monodb-backup/config"
 	"net"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/pkg/sftp"
@@ -127,7 +128,28 @@ func CleanupSFTP(target config.Target, client *sftp.Client, db string) error {
 			}
 		}
 
-		toDelete := getFilesToDelete(backups, period, keep)
+		var toDelete []BackupFile
+
+		re := regexp.MustCompile(`(.+)-(week_\d+|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Mon|Tue|Wed|Thu|Fri|Sat|Sun)`)
+
+		grouped := make(map[string][]BackupFile)
+		for _, f := range backups {
+			parts := strings.Split(f.Name, "/")
+			filename := parts[len(parts)-1]
+
+			dbName := ""
+			matches := re.FindStringSubmatch(filename)
+			if len(matches) > 1 {
+				dbName = matches[1]
+			} else {
+				dbName = filename
+			}
+			grouped[dbName] = append(grouped[dbName], f)
+		}
+
+		for _, group := range grouped {
+			toDelete = append(toDelete, getFilesToDelete(group, period, keep)...)
+		}
 		for _, f := range toDelete {
 			err := client.Remove(f.Path)
 			if err != nil {
