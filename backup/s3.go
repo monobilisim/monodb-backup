@@ -150,7 +150,7 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 		if db == "mysql" {
 			db = db + "_users"
 		}
-		targetID := s3Instance.instance.Bucket + "-" + s3Instance.instance.Endpoint
+		targetID := s3Instance.instance.Bucket + "-" + s3Instance.instance.Endpoint + "-" + s3Instance.instance.AccessKey
 		shouldRotate, name := rotate(db, targetID)
 		if s3Instance.instance.Path != "" {
 			name = s3Instance.instance.Path + "/" + name
@@ -245,7 +245,6 @@ func cleanupS3(ctx context.Context, s3Instance *uploaderStruct) error {
 					Bucket: aws.String(bucketName),
 					Delete: &types.Delete{
 						Objects: objects[i:end],
-						Quiet:   aws.Bool(true),
 					},
 				})
 				if err != nil {

@@ -1,6 +1,8 @@
 package backup
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"monodb-backup/config"
 	"os"
 	"strconv"
@@ -68,7 +70,8 @@ func updateRotatedTimestamp(db, targetID string) {
 	timestamp := time.Now().Format(time.RFC3339)
 	filename := "/tmp/monodb-rotated-" + db
 	if targetID != "" {
-		filename += "-" + sanitize(targetID)
+		hash := md5.Sum([]byte(targetID))
+		filename += "-" + hex.EncodeToString(hash[:])
 	}
 	err := os.WriteFile(filename, []byte(timestamp), 0644)
 	if err != nil {
@@ -79,7 +82,8 @@ func updateRotatedTimestamp(db, targetID string) {
 func isRotated(db, targetID string) bool {
 	filename := "/tmp/monodb-rotated-" + db
 	if targetID != "" {
-		filename += "-" + sanitize(targetID)
+		hash := md5.Sum([]byte(targetID))
+		filename += "-" + hex.EncodeToString(hash[:])
 	}
 	timestamp, err := os.ReadFile(filename)
 	if err != nil {
