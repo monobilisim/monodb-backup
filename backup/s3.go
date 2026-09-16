@@ -120,6 +120,7 @@ func InitializeS3Session() {
 
 func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, s3Instance *uploaderStruct) error {
 	bucketName := s3Instance.instance.Bucket
+
 	if reader == nil {
 		src = strings.TrimSuffix(src, "/")
 		file, err := os.Open(src)
@@ -134,6 +135,10 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 		src = db
 	}
 
+	if err := cleanupS3(ctx, s3Instance); err != nil {
+		return err
+	}
+
 	_, err := s3Instance.uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(dst),
@@ -144,15 +149,17 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 		return err
 	}
 
-	message := "Successfully uploaded " + src + " to S3\nBucket: " + bucketName + " path: " + dst
-	logger.Info(message)
+	logger.Info("Successfully uploaded " + src + " to S3\nBucket: " + bucketName + " path: " + dst)
 
 	if params.Rotation.Enabled {
 		if db == "mysql" {
 			db = db + "_users"
 		}
+
 		targetID := s3Instance.instance.Bucket + "-" + s3Instance.instance.Endpoint + "-" + s3Instance.instance.AccessKey
+
 		shouldRotate, name := rotate(db, targetID)
+
 		if s3Instance.instance.Path != "" {
 			name = s3Instance.instance.Path + "/" + name
 		}
@@ -160,6 +167,7 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 		for i := 1; i < len(extension); i++ {
 			name = name + "." + extension[i]
 		}
+
 		if shouldRotate {
 			sourceObj, err := s3Instance.client.GetObject(ctx, &s3.GetObjectInput{
 				Bucket: aws.String(bucketName),
@@ -181,16 +189,10 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 				return err
 			}
 			updateRotatedTimestamp(db, targetID)
-			logger.Info("Successfully created a copy of " + src + " for rotation\nBucket: " + bucketName + " path: " + name)
-		}
-
-		if params.Rotation.Keep.Daily > 0 || params.Rotation.Keep.Weekly > 0 || params.Rotation.Keep.Monthly > 0 {
-			err := cleanupS3(ctx, s3Instance)
-			if err != nil {
-				logger.Error("Error during S3 cleanup: " + err.Error())
-			}
+			logger.Info("Successfully uploaded " + src + " to S3\nBucket: " + bucketName + " path: " + name)
 		}
 	}
+
 	return nil
 }
 
