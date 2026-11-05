@@ -3,10 +3,11 @@ package notify
 import (
 	"bytes"
 	"encoding/json"
-	"monodb-backup/clog"
-	"monodb-backup/config"
 	"net/http"
 	"strings"
+
+	"monodb-backup/clog"
+	"monodb-backup/config"
 )
 
 var webhookStruct *config.Webhook = &config.Parameters.Notify.Webhook
@@ -27,7 +28,6 @@ func SendSingleEntityAlarm() {
 	if len(SuccessfulDBList) != 0 {
 		SendAlarm("Successfully backed up the following databases:\n- "+strings.Join(SuccessfulDBList, "\n- "), false)
 	}
-	return
 }
 
 func SendAlarm(message string, isError bool) {
@@ -45,12 +45,14 @@ func SendAlarm(message string, isError bool) {
 	if !webhookStruct.Enabled || (webhookStruct.OnlyOnError && !isError) {
 		return
 	}
-	var db string = func() string {
+	db := func() string {
 		switch config.Parameters.Database {
 		case "postgresql":
 			return "PostgreSQL"
 		case "mysql":
 			return "MySQL"
+		case "mongodb":
+			return "MongoDB"
 		default:
 			return "PostgreSQL"
 		}
@@ -92,7 +94,7 @@ func sendAlarm(webhook, message string) {
 		_ = resp.Body.Close()
 	}()
 
-	var res map[string]interface{}
+	var res map[string]any
 
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {

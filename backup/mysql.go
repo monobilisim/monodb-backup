@@ -5,12 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"io"
-	"monodb-backup/notify"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"monodb-backup/notify"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -95,14 +96,14 @@ func getTableList(dbName, path string) ([]string, string, error) {
 		logger.Error(err.Error())
 		return make([]string, 0), "", err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	rows, err := db.Query("SHOW TABLES FROM " + dbName)
 	if err != nil {
 		logger.Error(err.Error())
 		return make([]string, 0), "", err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var table string
 	var tableList []string
@@ -124,7 +125,7 @@ func getTableList(dbName, path string) ([]string, string, error) {
 		logger.Error(err.Error())
 		return make([]string, 0), "", err
 	}
-	defer newrows.Close()
+	defer func() { _ = newrows.Close() }()
 
 	var charSet, collationName string
 	for newrows.Next() {

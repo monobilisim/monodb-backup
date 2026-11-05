@@ -5,8 +5,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"io"
-	"monodb-backup/config"
-	"monodb-backup/notify"
 	"net"
 	"net/http"
 	"os"
@@ -14,6 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"monodb-backup/config"
+	"monodb-backup/notify"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -128,7 +129,7 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 			logger.Error("Couldn't open file " + src + " to read - Error: " + err.Error())
 			return err
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 		logger.Info("Successfully opened file " + src + " to read.")
 		reader = file
 	} else {
@@ -177,7 +178,7 @@ func uploadFileToS3(ctx context.Context, src, dst, db string, reader io.Reader, 
 				logger.Error("Couldn't get source object for rotation\nBucket: " + bucketName + " path: " + dst + "\n Error: " + err.Error())
 				return err
 			}
-			defer sourceObj.Body.Close()
+			defer func() { _ = sourceObj.Body.Close() }()
 
 			_, err = s3Instance.uploader.Upload(ctx, &s3.PutObjectInput{
 				Bucket: aws.String(bucketName),

@@ -3,10 +3,11 @@ package backup
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"monodb-backup/config"
 	"os"
 	"strconv"
 	"time"
+
+	"monodb-backup/config"
 )
 
 type rightNow struct {
@@ -21,6 +22,7 @@ type rightNow struct {
 var dateNow rightNow
 
 func dumpName(db string, rotation config.Rotation, buName string) string {
+	backupAsTables := params.BackupAsTables && params.Database != "mongodb"
 	if !rotation.Enabled {
 		date := rightNow{
 			year:  time.Now().Format("2006"),
@@ -28,7 +30,7 @@ func dumpName(db string, rotation config.Rotation, buName string) string {
 			now:   time.Now().Format("2006-01-02-150405"),
 		}
 		var name string
-		if !params.BackupAsTables || db == "mysql_users" {
+		if !backupAsTables || db == "mysql_users" {
 			name = date.year + "/" + date.month + "/" + db + "-" + date.now
 		} else {
 			name = date.year + "/" + date.month + "/" + db + "/" + buName + "-" + date.now
@@ -36,7 +38,7 @@ func dumpName(db string, rotation config.Rotation, buName string) string {
 		return name
 	} else {
 		suffix := rotation.Suffix
-		if !params.BackupAsTables {
+		if !backupAsTables {
 			switch suffix {
 			case "day":
 				return db + "-" + dateNow.day
@@ -120,16 +122,6 @@ func rotate(db, targetID string) (bool, string) {
 		}
 	}
 	return false, ""
-}
-
-func sanitize(text string) string {
-	var result string
-	for _, char := range text {
-		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '-' || char == '_' {
-			result += string(char)
-		}
-	}
-	return result
 }
 
 func nameWithPath(name string) (newName string) {

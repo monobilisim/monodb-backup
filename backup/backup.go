@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"monodb-backup/notify"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"monodb-backup/notify"
 )
 
 var (
@@ -66,6 +67,8 @@ func getDBList() []string {
 		return getMSSQLList()
 	case "oracle":
 		return getOracleList()
+	case "mongodb":
+		return getMongoList()
 	default:
 		return getPSQLList()
 	}
@@ -77,6 +80,8 @@ func dumpAndUpload(db string, pipeWriters []*io.PipeWriter) error {
 		return dumpAndUploadPSQL(db, pipeWriters)
 	case "mysql":
 		return dumpAndUploadMySQL(db, pipeWriters)
+	case "mongodb":
+		return dumpAndUploadMongo(db, pipeWriters)
 	default:
 		return dumpAndUploadPSQL(db, pipeWriters)
 	}
@@ -90,6 +95,8 @@ func dumpDB(db string, dst string) (string, string, error) {
 		return dumpMySQLDb(db, dst)
 	case "mssql":
 		return dumpMSSQLDB(db, dst)
+	case "mongodb":
+		return dumpMongoDB(db, dst)
 	//case "oracle":
 	//	return dumpOracleDB(db, dst)
 	default:
@@ -103,7 +110,7 @@ func Backup() {
 	currentDB = ""
 	mu.Unlock()
 
-	streamable := (params.Database == "" || params.Database == "postgresql" || (params.Database == "mysql" && !params.BackupAsTables)) && params.ArchivePass == ""
+	streamable := (params.Database == "" || params.Database == "postgresql" || params.Database == "mongodb" || (params.Database == "mysql" && !params.BackupAsTables)) && params.ArchivePass == ""
 
 	dateNow = rightNow{
 		day:    time.Now().Format("Mon"),
@@ -163,7 +170,7 @@ func Backup() {
 		for i := 1; i < len(fullPath)-1; i++ {
 			dst = dst + "/" + fullPath[i]
 		}
-		if params.BackupAsTables && db != "mysql" {
+		if params.BackupAsTables && db != "mysql" && params.Database != "mongodb" {
 			dumpPaths, names, err := dumpDBWithTables(db, dst)
 			if err != nil {
 				// notify.SendAlarm("Problem during backing up "+db+" - Error: "+err.Error(), true)
@@ -211,7 +218,7 @@ func Backup() {
 	currentDB = ""
 	mu.Unlock()
 	if params.Database == "mssql" {
-		mssqlDB.Close()
+		_ = mssqlDB.Close()
 	}
 	logger.Info("monodb-backup non-streamable job finished.")
 }
@@ -231,6 +238,8 @@ func uploadWhileDumping(db string) {
 		name = name + ".dump"
 	case "mysql":
 		name = name + ".sql.gz"
+	case "mongodb":
+		name = name + ".archive.gz"
 	default:
 		name = name + ".dump"
 	}
@@ -244,7 +253,7 @@ func uploadWhileDumping(db string) {
 		go func(i int, instance uploaderStruct) {
 
 			err := uploadFileToS3(ctx, "", dumpPath, db, pipeReader, &instance)
-			pipeWriter.Close()
+			_ = pipeWriter.Close()
 			uploadDone[i] <- err
 			close(uploadDone[i])
 		}(i, instance)
@@ -254,7 +263,7 @@ func uploadWhileDumping(db string) {
 	if err != nil {
 		logger.Error("Error during dump of " + db + " - Error: " + err.Error())
 		for _, writer := range pipeWriters {
-			writer.Close()
+			_ = writer.Close()
 		}
 		notify.FailedDBList = append(notify.FailedDBList, db+" - Dump Error: "+err.Error())
 		FailedDBNames = append(FailedDBNames, db)
@@ -262,7 +271,7 @@ func uploadWhileDumping(db string) {
 	}
 
 	for _, writer := range pipeWriters {
-		writer.Close()
+		_ = writer.Close()
 	}
 
 	for i, channel := range uploadDone {

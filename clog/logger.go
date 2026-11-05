@@ -1,12 +1,13 @@
 package clog
 
 import (
-	"monodb-backup/config"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
+
+	"monodb-backup/config"
 
 	"github.com/sirupsen/logrus"
 	"github.com/snowzach/rotatefilehook"
@@ -93,6 +94,4 @@ func InitializeLogger() {
 
 		Logger.AddHook(rotateFileHook)
 	}
-
-	return
 }
