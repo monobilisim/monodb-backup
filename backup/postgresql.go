@@ -3,17 +3,17 @@ package backup
 import (
 	"bytes"
 	"io"
-	"monodb-backup/config"
-	"monodb-backup/notify"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"monodb-backup/notify"
 )
 
 func getPSQLList() []string {
-	var remote config.Remote = params.Remote
+	remote := params.Remote
 	psqlArgs := []string{"-lqt"}
 	var stderr bytes.Buffer
 
@@ -51,7 +51,7 @@ func getPSQLList() []string {
 func dumpAndUploadPSQL(db string, pipeWriters []*io.PipeWriter) error {
 	var cmd *exec.Cmd
 	var stderr bytes.Buffer
-	var remote config.Remote = params.Remote
+	remote := params.Remote
 	var writers []io.Writer
 	for _, pw := range pipeWriters {
 		writers = append(writers, pw)
@@ -91,7 +91,7 @@ func dumpPSQLDb(db string, dst string) (string, string, error) {
 	var cmd *exec.Cmd
 	var stderr bytes.Buffer
 	var stderr1 bytes.Buffer
-	var remote config.Remote = params.Remote
+	remote := params.Remote
 
 	name := dumpName(db, params.Rotation, "")
 
@@ -131,7 +131,8 @@ func dumpPSQLDb(db string, dst string) (string, string, error) {
 			return "", "", err
 		}
 	} else {
-		if format == "gzip" {
+		switch format {
+		case "gzip":
 			name = name + ".dump.7z"
 			dumpPath = dst + "/" + name
 			pgDumpArgs = append(pgDumpArgs, "-Fc")
@@ -156,7 +157,7 @@ func dumpPSQLDb(db string, dst string) (string, string, error) {
 				logger.Error("Couldn't back up " + db + err.Error() + " - " + stderr.String())
 				return "", "", err
 			}
-		} else if format == "7zip" {
+		case "7zip":
 			name = name + ".sql.7z"
 			dumpPath = dst + "/" + name
 			cmd = exec.Command("/usr/bin/pg_dump", pgDumpArgs...)

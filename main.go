@@ -3,12 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"runtime"
+	"time"
+
 	"monodb-backup/backup"
 	"monodb-backup/clog"
 	"monodb-backup/config"
 	"monodb-backup/notify"
-	"runtime"
-	"time"
 
 	"github.com/robfig/cron"
 )
@@ -33,7 +34,7 @@ func main() {
 	config.ParseParams(filePath)
 	clog.InitializeLogger()
 
-	var logger *clog.CustomLogger = &clog.Logger
+	logger := &clog.Logger
 
 	if config.Parameters.Database == "mssql" {
 		backup.InitializeMSSQL()
@@ -55,7 +56,9 @@ func main() {
 
 	if config.Parameters.RunEveryCron != "" {
 		c := cron.New()
-		c.AddFunc(config.Parameters.RunEveryCron, initBackup)
+		if err := c.AddFunc(config.Parameters.RunEveryCron, initBackup); err != nil {
+			logger.Fatal("Couldn't schedule backup job: " + err.Error())
+		}
 		c.Start()
 		select {}
 	} else {

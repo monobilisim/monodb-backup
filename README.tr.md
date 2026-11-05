@@ -13,7 +13,7 @@
 </a>
 
 <h2 align="center">monodb-backup</h2>
-<b>monodb-backup</b>, PostgreSQL veritabanlarını yedeklemek için bir araçtır.
+<b>monodb-backup</b>, MySQL, PostgreSQL ve MongoDB veritabanlarını yedeklemek için bir araçtır.
 </div>
 
 ---
@@ -56,6 +56,7 @@ Yapılandırmaya bağlı olarak her veritabanı için yedekler oluşturulacaktı
 ## Gereksinimler
 
 - p7zip
+- mongodb-database-tools ve mongosh (MongoDB için)
 
 ---
 

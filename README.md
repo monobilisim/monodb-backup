@@ -13,7 +13,7 @@
 </a>
 
 <h2 align="center">monodb-backup</h2>
-<b>monodb-backup</b> is a tool for backing up MySQL and PostgreSQL databases.
+<b>monodb-backup</b> is a tool for backing up MySQL, PostgreSQL and MongoDB databases.
 </div>
 
 ---
@@ -56,6 +56,7 @@ Backups will be created for each database based on the configuration. For local 
 ## Dependencies
 
 - p7zip
+- mongodb-database-tools and mongosh (for MongoDB)
 
 ---
 

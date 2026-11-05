@@ -2,9 +2,10 @@ package backup
 
 import (
 	"bytes"
-	"monodb-backup/config"
 	"os/exec"
 	"strings"
+
+	"monodb-backup/config"
 
 	"github.com/pkg/sftp"
 )
@@ -49,12 +50,12 @@ func SendRsync(srcPath, dstPath, db string, target config.Target) (string, error
 		if err != nil {
 			logger.Error("Could not connect to SSH for cleanup: " + err.Error())
 		} else {
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 			sftpCli, err := sftp.NewClient(client)
 			if err != nil {
 				logger.Error("Could not create SFTP client for cleanup: " + err.Error())
 			} else {
-				defer sftpCli.Close()
+				defer func() { _ = sftpCli.Close() }()
 				if err := CleanupSFTP(target, sftpCli, db); err != nil {
 					logger.Error("Error during Rsync cleanup: " + err.Error())
 				}

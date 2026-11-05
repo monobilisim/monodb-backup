@@ -7,10 +7,11 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"monodb-backup/notify"
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"monodb-backup/notify"
 
 	_ "github.com/denisenkom/go-mssqldb"
 )
@@ -49,16 +50,16 @@ func getMSSQLList() []string {
 	// Execute the query to get the list of databases
 	rows, err := mssqlDB.QueryContext(ctx, "SELECT name FROM master.dbo.sysdatabases WHERE dbid > 4;")
 	if err != nil {
-		mssqlDB.Close()
+		_ = mssqlDB.Close()
 		logger.Error(err.Error())
 		return make([]string, 0)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var dbName string
 		if err := rows.Scan(&dbName); err != nil {
-			mssqlDB.Close()
+			_ = mssqlDB.Close()
 			logger.Error(err.Error())
 			return make([]string, 0)
 		}
@@ -66,7 +67,7 @@ func getMSSQLList() []string {
 	}
 
 	if err := rows.Err(); err != nil {
-		mssqlDB.Close()
+		_ = mssqlDB.Close()
 		logger.Error(err.Error())
 		return make([]string, 0)
 	}
