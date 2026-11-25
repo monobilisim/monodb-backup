@@ -39,3 +39,11 @@ func statDestination(root string) (os.FileInfo, error) {
 	}
 	return info, nil
 }
+
+func mssqlServiceAccount(host string) string {
+	_, instance := splitMSSQLHost(host)
+	if instance == "" || strings.EqualFold(instance, "MSSQLSERVER") {
+		return `NT SERVICE\MSSQLSERVER`
+	}
+	return `NT SERVICE\MSSQL$` + instance
+}

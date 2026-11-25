@@ -54,3 +54,17 @@ func TestInitServerDirOwnerRejectsSymlink(t *testing.T) {
 		t.Fatalf("symlink: got %v", err)
 	}
 }
+
+func TestMSSQLServiceAccount(t *testing.T) {
+	for host, want := range map[string]string{
+		"localhost":             `NT SERVICE\MSSQLSERVER`,
+		`localhost\MSSQLSERVER`: `NT SERVICE\MSSQLSERVER`,
+		`.\mssqlserver`:         `NT SERVICE\MSSQLSERVER`,
+		`localhost\SQLEXPRESS`:  `NT SERVICE\MSSQL$SQLEXPRESS`,
+		`(local)\Prod_1`:        `NT SERVICE\MSSQL$Prod_1`,
+	} {
+		if got := mssqlServiceAccount(host); got != want {
+			t.Errorf("mssqlServiceAccount(%q) = %q, want %q", host, got, want)
+		}
+	}
+}

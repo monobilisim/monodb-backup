@@ -13,5 +13,5 @@ func initServerDirOwner(root string) error {
 }
 
 func grantServerAccess(_, dir string) error {
-	return acl.Apply(dir, false, false, acl.GrantName(windows.GENERIC_READ|windows.GENERIC_WRITE, "NT SERVICE\\MSSQLSERVER"))
+	return acl.Apply(dir, false, false, acl.GrantName(windows.GENERIC_READ|windows.GENERIC_WRITE, mssqlServiceAccount(params.Remote.Host)))
 }
