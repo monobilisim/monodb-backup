@@ -17,7 +17,12 @@ import (
 	"monodb-backup/notify"
 )
 
-const weirdDBName = "we]ird'name"
+const (
+	testPrefix  = "monodb_it_"
+	testSmoke   = testPrefix + "smoke"
+	testGone    = testPrefix + "gone"
+	weirdDBName = testPrefix + "we]ird'name"
+)
 
 func bracket(name string) string { return "[" + strings.ReplaceAll(name, "]", "]]") + "]" }
 
@@ -89,7 +94,15 @@ func countRows(t *testing.T, db string) int {
 
 func dropAllTestDBs(t *testing.T) {
 	t.Helper()
-	rows, err := mssqlDB.QueryContext(context.Background(), `SELECT name FROM sys.databases WHERE name IN ('smoke', 'gone', 'we]ird''name') OR name LIKE '%\_restored' ESCAPE '\'`)
+	var lits []string
+	for _, base := range []string{testSmoke, weirdDBName, testGone} {
+		lits = append(lits, literal(base))
+		if base != testGone {
+			lits = append(lits, literal(base+"_restored"))
+		}
+	}
+	lits = append(lits, literal(testSmoke+"_enc_restored"))
+	rows, err := mssqlDB.QueryContext(context.Background(), "SELECT name FROM sys.databases WHERE name IN ("+strings.Join(lits, ", ")+")")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +139,7 @@ func TestMSSQLIntegration(t *testing.T) {
 		CtxCancel:         1,
 		Remote:            config.Remote{IsRemote: true, Host: u.Hostname(), Port: u.Port(), User: u.User.Username(), Password: pass},
 	}
-	db, err := sql.Open("sqlserver", dsn)
+	db, err := sql.Open("sqlserver", mssqlDSN(params.Remote))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,26 +151,26 @@ func TestMSSQLIntegration(t *testing.T) {
 
 	dropAllTestDBs(t)
 	t.Cleanup(func() { dropAllTestDBs(t) })
-	for _, n := range []string{"smoke", weirdDBName, "gone"} {
+	for _, n := range []string{testSmoke, weirdDBName, testGone} {
 		mssqlExec(t, "CREATE DATABASE "+bracket(n))
 	}
-	for _, n := range []string{"smoke", weirdDBName} {
+	for _, n := range []string{testSmoke, weirdDBName} {
 		mssqlExec(t, "CREATE TABLE "+bracket(n)+".dbo.t (id int)")
 		mssqlExec(t, "INSERT INTO "+bracket(n)+".dbo.t (id) SELECT TOP 1000 ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) FROM sys.all_objects a CROSS JOIN sys.all_objects b")
 	}
-	mssqlExec(t, "ALTER DATABASE [gone] SET OFFLINE WITH ROLLBACK IMMEDIATE")
+	mssqlExec(t, "ALTER DATABASE "+bracket(testGone)+" SET OFFLINE WITH ROLLBACK IMMEDIATE")
 
 	dateNow = rightNow{day: "Mon"}
 	bakPath := func(db string) string { return filepath.Join(dir, dumpName(db, params.Rotation, "")+".bak") }
 
 	t.Run("list", func(t *testing.T) {
 		list := getMSSQLList()
-		for _, want := range []string{"smoke", weirdDBName} {
+		for _, want := range []string{testSmoke, weirdDBName} {
 			if !slices.Contains(list, want) {
 				t.Errorf("list %v misses %q", list, want)
 			}
 		}
-		for _, bad := range []string{"master", "msdb", "gone"} {
+		for _, bad := range []string{"master", "msdb", testGone} {
 			if slices.Contains(list, bad) {
 				t.Errorf("list %v contains %q", list, bad)
 			}
@@ -165,7 +178,7 @@ func TestMSSQLIntegration(t *testing.T) {
 	})
 
 	t.Run("init overwrites", func(t *testing.T) {
-		p1, _, err := dumpMSSQLDB("smoke", dir)
+		p1, _, err := dumpMSSQLDB(testSmoke, dir)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -173,7 +186,7 @@ func TestMSSQLIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		p2, _, err := dumpMSSQLDB("smoke", dir)
+		p2, _, err := dumpMSSQLDB(testSmoke, dir)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -201,7 +214,7 @@ func TestMSSQLIntegration(t *testing.T) {
 	})
 
 	t.Run("restore", func(t *testing.T) {
-		for _, n := range []string{"smoke", weirdDBName} {
+		for _, n := range []string{testSmoke, weirdDBName} {
 			p, _, err := dumpMSSQLDB(n, dir)
 			if err != nil {
 				t.Fatalf("%s: %v", n, err)
@@ -215,6 +228,9 @@ func TestMSSQLIntegration(t *testing.T) {
 
 	t.Run("missing db", func(t *testing.T) {
 		dateNow = rightNow{day: "Wed"}
+		if err := os.WriteFile(bakPath("does_not_exist"), []byte("stale"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 		if _, _, err := dumpMSSQLDB("does_not_exist", dir); err == nil {
 			t.Fatal("expected an error")
 		}
@@ -227,7 +243,7 @@ func TestMSSQLIntegration(t *testing.T) {
 		dateNow = rightNow{day: "Tue"}
 		params.ArchivePass = "s3cret"
 		t.Cleanup(func() { params.ArchivePass = "" })
-		p, name, err := dumpMSSQLDB("smoke", dir)
+		p, name, err := dumpMSSQLDB(testSmoke, dir)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -252,14 +268,14 @@ func TestMSSQLIntegration(t *testing.T) {
 		if err := os.Chmod(extracted, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		restoreMSSQL(t, extracted, "smoke_enc_restored")
-		if got := countRows(t, "smoke_enc_restored"); got != 1000 {
+		restoreMSSQL(t, extracted, testSmoke+"_enc_restored")
+		if got := countRows(t, testSmoke+"_enc_restored"); got != 1000 {
 			t.Errorf("restored rows = %d, want 1000", got)
 		}
 	})
 
 	t.Run("two runs", func(t *testing.T) {
-		params.Databases = []string{"smoke"}
+		params.Databases = []string{testSmoke}
 		params.BackupType.Type = ""
 		params.RemoveLocal = false
 		params.BackupAsTables = true
@@ -276,7 +292,7 @@ func TestMSSQLIntegration(t *testing.T) {
 		params.Rotation.Enabled = false
 		params.RemoveLocal = true
 		t.Cleanup(func() { params.Rotation.Enabled, params.RemoveLocal = true, false })
-		params.Databases = []string{"smoke"}
+		params.Databases = []string{testSmoke}
 		notify.SuccessfulDBList, notify.FailedDBList = nil, nil
 		Backup()
 		if len(notify.SuccessfulDBList) != 1 || len(notify.FailedDBList) != 0 {
