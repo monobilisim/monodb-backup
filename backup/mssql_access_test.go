@@ -39,3 +39,18 @@ func TestInitServerDirOwnerRequiresDestination(t *testing.T) {
 		t.Fatal("regular file: want error")
 	}
 }
+
+func TestInitServerDirOwnerRejectsSymlink(t *testing.T) {
+	base := t.TempDir()
+	real := filepath.Join(base, "real")
+	if err := os.Mkdir(real, 0o770); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	if err := initServerDirOwner(link); err == nil || !strings.Contains(err.Error(), "real directory") {
+		t.Fatalf("symlink: got %v", err)
+	}
+}

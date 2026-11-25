@@ -27,9 +27,12 @@ func dirsFrom(root, dir string) ([]string, error) {
 
 func statDestination(root string) (os.FileInfo, error) {
 	const hint = "backupDestination %q must be an existing directory owned by the SQL Server service account"
-	info, err := os.Stat(root)
+	info, err := os.Lstat(root)
 	if err != nil {
 		return nil, fmt.Errorf(hint+": %w", root, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("backupDestination %q is a symlink; it must be a real directory owned by the SQL Server service account", root)
 	}
 	if !info.IsDir() {
 		return nil, fmt.Errorf(hint, root)

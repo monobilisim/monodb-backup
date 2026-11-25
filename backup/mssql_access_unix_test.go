@@ -5,6 +5,7 @@ package backup
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 )
@@ -136,5 +137,17 @@ func TestGrantServerAccessRefusesSymlinks(t *testing.T) {
 	}
 	if u, g := ownerOf(t, victim); u != 5151 || g != 5151 {
 		t.Errorf("victim owner changed to %d:%d", u, g)
+	}
+}
+
+func TestRequireRealDirNamesFullPath(t *testing.T) {
+	dir := t.TempDir()
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(dir, link); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Lstat(link)
+	if got := requireRealDir(link, info, err); got == nil || !strings.Contains(got.Error(), link) {
+		t.Fatalf("got %v, want an error naming %s", got, link)
 	}
 }

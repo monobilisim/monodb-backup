@@ -39,7 +39,8 @@ func grantServerAccess(root, dir string) error {
 		return err
 	}
 	root = dirs[0]
-	if err := requireRealDir(os.Lstat(root)); err != nil {
+	info, err := os.Lstat(root)
+	if err := requireRealDir(root, info, err); err != nil {
 		return err
 	}
 	if err := os.Lchown(root, serverOwner.uid, serverOwner.gid); err != nil {
@@ -58,7 +59,8 @@ func grantServerAccess(root, dir string) error {
 		if err != nil {
 			return err
 		}
-		if err := requireRealDir(r.Lstat(rel)); err != nil {
+		info, err := r.Lstat(rel)
+		if err := requireRealDir(d, info, err); err != nil {
 			return err
 		}
 		if err := r.Lchown(rel, serverOwner.uid, serverOwner.gid); err != nil {
@@ -68,12 +70,12 @@ func grantServerAccess(root, dir string) error {
 	return nil
 }
 
-func requireRealDir(info os.FileInfo, err error) error {
+func requireRealDir(path string, info os.FileInfo, err error) error {
 	if err != nil {
 		return err
 	}
 	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-		return fmt.Errorf("%s is not a real directory", info.Name())
+		return fmt.Errorf("%s is not a real directory", path)
 	}
 	return nil
 }
