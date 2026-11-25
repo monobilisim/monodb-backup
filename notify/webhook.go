@@ -53,6 +53,8 @@ func SendAlarm(message string, isError bool) {
 			return "MySQL"
 		case "mongodb":
 			return "MongoDB"
+		case "mssql":
+			return "MSSQL"
 		default:
 			return "PostgreSQL"
 		}
