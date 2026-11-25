@@ -13,7 +13,7 @@
 </a>
 
 <h2 align="center">monodb-backup</h2>
-<b>monodb-backup</b>, MySQL, PostgreSQL ve MongoDB veritabanlarını yedeklemek için bir araçtır.
+<b>monodb-backup</b>, MySQL, PostgreSQL, MongoDB ve Microsoft SQL Server veritabanlarını yedeklemek için bir araçtır.
 </div>
 
 ---
@@ -25,6 +25,7 @@
 - [Kullanım](#kullanım)
 - [Gereksinimler](#gereksinimler)
 - [Yapılandırma](#yapılandırma)
+- [MSSQL notları](#mssql-notları)
 - [Derleme](#derleme)
 - [Lisans](#lisans)
 
@@ -32,7 +33,7 @@
 
 ## Özellikler
 
-- Tüm veritabanlarını veya özel bir veritabanı listesini yedekler ve şifreler.
+- Tüm veritabanlarını veya özel bir veritabanı listesini yedekler ve şifreler (MySQL, PostgreSQL, MongoDB ve Microsoft SQL Server).
 - Yerel yedeklemeleri ve S3 veya Minio gibi bulut depolama seçeneklerini destekler.
 - Verimli depolama yönetimi için eski yerel yedekleri kaldırma seçeneği.
 - Yedeklemeleri izlemek için e-posta aracılığıyla bildirimler sağlar.
@@ -74,6 +75,18 @@ Yapılandırma dosyası YAML biçimindedir. Mevcut seçenekler şunlardır:
 - `log` - log yapılandırması
 
 Örnek bir yapılandırma dosyası için `config/config.sample.yml` dosyasına bakın.
+
+---
+
+## MSSQL notları
+
+- monodb-backup'ı SQL Server'ın çalıştığı makinede, root olarak ya da SQL Server servis hesabıyla çalıştırın.
+- `remote` bloğu zorunludur. SQL oturum açma bilgisi kullanın; Windows'ta `user` boşsa tümleşik kimlik doğrulama kullanılır.
+- `backupDestination` dizini var olmalı ve servis hesabına ait olmalıdır (`chown mssql: /var/backups`). monodb-backup root olarak çalışıyorsa yeni alt klasörler servis hesabına otomatik devredilir.
+- Yedekler `COPY_ONLY` alınır, mevcut yedek zincirlerine dokunulmaz.
+- Express ve Web sürümlerinde yedekler sıkıştırılmaz.
+- MSSQL yedekleri önce yerel diske yazılır, sonra yüklenir; akış (stream) yoluyla gönderilmez.
+- `backupAsTables` yok sayılır.
 
 ---
 
