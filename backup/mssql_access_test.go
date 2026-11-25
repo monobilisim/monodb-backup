@@ -1,0 +1,70 @@
+package backup
+
+import (
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+)
+
+func TestDirsFrom(t *testing.T) {
+	p := filepath.FromSlash
+	got, err := dirsFrom(p("/var/backups"), p("/var/backups/Daily/Mon"))
+	want := []string{p("/var/backups"), p("/var/backups/Daily"), p("/var/backups/Daily/Mon")}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, %v; want %v", got, err, want)
+	}
+	got, err = dirsFrom(p("/var/backups/"), p("/var/backups"))
+	if err != nil || !reflect.DeepEqual(got, []string{p("/var/backups")}) {
+		t.Fatalf("got %v, %v", got, err)
+	}
+	for _, dir := range []string{"/var/backupsX/a", "/var/backups/../etc", "/var", "/etc"} {
+		if _, err := dirsFrom(p("/var/backups"), p(dir)); err == nil {
+			t.Errorf("dirsFrom(%q) want error", dir)
+		}
+	}
+}
+
+func TestInitServerDirOwnerRequiresDestination(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "nope")
+	if err := initServerDirOwner(missing); err == nil || !strings.Contains(err.Error(), "backupDestination") {
+		t.Fatalf("missing dir: got %v", err)
+	}
+	f := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(f, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := initServerDirOwner(f); err == nil {
+		t.Fatal("regular file: want error")
+	}
+}
+
+func TestInitServerDirOwnerRejectsSymlink(t *testing.T) {
+	base := t.TempDir()
+	real := filepath.Join(base, "real")
+	if err := os.Mkdir(real, 0o770); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	if err := initServerDirOwner(link); err == nil || !strings.Contains(err.Error(), "real directory") {
+		t.Fatalf("symlink: got %v", err)
+	}
+}
+
+func TestMSSQLServiceAccount(t *testing.T) {
+	for host, want := range map[string]string{
+		"localhost":             `NT SERVICE\MSSQLSERVER`,
+		`localhost\MSSQLSERVER`: `NT SERVICE\MSSQLSERVER`,
+		`.\mssqlserver`:         `NT SERVICE\MSSQLSERVER`,
+		`localhost\SQLEXPRESS`:  `NT SERVICE\MSSQL$SQLEXPRESS`,
+		`(local)\Prod_1`:        `NT SERVICE\MSSQL$Prod_1`,
+	} {
+		if got := mssqlServiceAccount(host); got != want {
+			t.Errorf("mssqlServiceAccount(%q) = %q, want %q", host, got, want)
+		}
+	}
+}

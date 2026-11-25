@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,6 +26,10 @@ var (
 
 var Retrying = false
 var FailedDBNames []string
+
+func hasDotDotElement(name string) bool {
+	return slices.Contains(strings.FieldsFunc(name, func(r rune) bool { return r == '/' || r == '\\' }), "..")
+}
 
 func init() {
 	appStartTime = time.Now()
@@ -159,6 +164,13 @@ func Backup() {
 		currentDB = db
 		currentDBStartTime = time.Now()
 		mu.Unlock()
+		if hasDotDotElement(db) {
+			msg := "database name " + strconv.Quote(db) + " contains a '..' path element and was skipped"
+			logger.Error(msg)
+			notify.FailedDBList = append(notify.FailedDBList, db+" - Error: "+msg)
+			FailedDBNames = append(FailedDBNames, db)
+			continue
+		}
 		var dst string
 		if runtime.GOOS == "windows" {
 			dst = strings.TrimSuffix(params.BackupDestination, "/") + db
@@ -170,7 +182,7 @@ func Backup() {
 		for i := 1; i < len(fullPath)-1; i++ {
 			dst = dst + "/" + fullPath[i]
 		}
-		if params.BackupAsTables && db != "mysql" && params.Database != "mongodb" {
+		if params.BackupAsTables && db != "mysql" && params.Database != "mongodb" && params.Database != "mssql" {
 			dumpPaths, names, err := dumpDBWithTables(db, dst)
 			if err != nil {
 				// notify.SendAlarm("Problem during backing up "+db+" - Error: "+err.Error(), true)
@@ -206,6 +218,9 @@ func Backup() {
 			} else {
 				logger.Info("Dump file at " + params.BackupDestination + "/" + db + " successfully deleted.")
 			}
+			if params.Database == "mssql" {
+				restoreMSSQLDestination()
+			}
 		} else {
 			if params.Rotation.Keep.Daily > 0 || params.Rotation.Keep.Weekly > 0 || params.Rotation.Keep.Monthly > 0 {
 				if err := cleanupLocal(); err != nil {
@@ -217,9 +232,6 @@ func Backup() {
 	mu.Lock()
 	currentDB = ""
 	mu.Unlock()
-	if params.Database == "mssql" {
-		_ = mssqlDB.Close()
-	}
 	logger.Info("monodb-backup non-streamable job finished.")
 }
 

@@ -1,5 +1,5 @@
 backupDestination: /var/backups
-database: postgresql # mysql or mongodb - default is postgresql
+database: postgresql # mysql, mongodb or mssql - default is postgresql
 runEveryCron: "@every 1m" # run every minute
 databases: # all databases if empty
   - db1
@@ -26,9 +26,9 @@ rotation:
     weekly: 4
     monthly: 3
 remote:
-  isRemote: false # for mysql; even if isRemote false and you are backing up as the msyql user in the local machine, you still have to provide user and password/
+  isRemote: false # must be true for mssql; for mysql, user and password are needed even when false
   host: 127.0.0.1
-  port: 5432
+  port: 5432 # 1433 for mssql
   user: postgres # necessary for mysql, even if isRemote false
   password: password # necessary for mysql, even if isRemote false
 backupType:

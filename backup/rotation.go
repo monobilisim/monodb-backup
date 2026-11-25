@@ -22,7 +22,7 @@ type rightNow struct {
 var dateNow rightNow
 
 func dumpName(db string, rotation config.Rotation, buName string) string {
-	backupAsTables := params.BackupAsTables && params.Database != "mongodb"
+	backupAsTables := params.BackupAsTables && params.Database != "mongodb" && params.Database != "mssql"
 	if !rotation.Enabled {
 		date := rightNow{
 			year:  time.Now().Format("2006"),

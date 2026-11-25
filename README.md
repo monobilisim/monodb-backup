@@ -13,7 +13,7 @@
 </a>
 
 <h2 align="center">monodb-backup</h2>
-<b>monodb-backup</b> is a tool for backing up MySQL, PostgreSQL and MongoDB databases.
+<b>monodb-backup</b> is a tool for backing up MySQL, PostgreSQL, MongoDB and Microsoft SQL Server databases.
 </div>
 
 ---
@@ -25,6 +25,7 @@
 - [Usage](#usage)
 - [Dependencies](#dependencies)
 - [Configuration](#configuration)
+- [MSSQL notes](#mssql-notes)
 - [Building](#building)
 - [License](#license)
 
@@ -32,7 +33,7 @@
 
 ## Features
 
-- Backs up and encrypts all databases or a custom list of databases.
+- Backs up and encrypts all databases or a custom list of databases (MySQL, PostgreSQL, MongoDB and Microsoft SQL Server).
 - Supports local backups and cloud storage options like S3 or Minio.
 - Option to remove old local backups for efficient storage management.
 - Provides notifications through email for monitoring backups.
@@ -74,6 +75,18 @@ The configuration file is in YAML format. The available options are:
 - `log` - Logging configuration
 
 See `config/config.sample.yml` for an example configuration file.
+
+---
+
+## MSSQL notes
+
+- Run monodb-backup on the SQL Server host, as root or as the SQL Server service account. Running as any other user is unsupported.
+- The `remote` block is required and `remote.isRemote` must be `true`. Use a SQL login; on Windows an empty `user` uses integrated authentication.
+- `backupDestination` must exist and be owned by the service account (`chown mssql: /var/backups/mssql`). New subfolders follow automatically when monodb-backup runs as root.
+- Backups are `COPY_ONLY`, so existing backup chains are left alone.
+- Express and Web edition backups are uncompressed.
+- MSSQL backups are written locally and then uploaded, never streamed.
+- `backupAsTables` is ignored.
 
 ---
 
