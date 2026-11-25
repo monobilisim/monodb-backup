@@ -174,19 +174,23 @@ func mssqlBackupStatement(compress bool) string {
 	return s
 }
 
-// EngineEdition 4 is Express, which rejects COMPRESSION.
+// Express (EngineEdition 4) and Web editions reject COMPRESSION.
 func mssqlSupportsCompression(ctx context.Context) (bool, error) {
-	var edition int
-	if err := mssqlDB.QueryRowContext(ctx, "SELECT CAST(SERVERPROPERTY('EngineEdition') AS int)").Scan(&edition); err != nil {
+	const q = "SELECT CASE WHEN CAST(SERVERPROPERTY('EngineEdition') AS int) = 4 OR CAST(SERVERPROPERTY('Edition') AS nvarchar(128)) LIKE 'Web%' THEN 0 ELSE 1 END"
+	var ok int
+	if err := mssqlDB.QueryRowContext(ctx, q).Scan(&ok); err != nil {
 		return false, err
 	}
-	return edition != 4, nil
+	return ok == 1, nil
 }
 
 func checkMSSQLBackupVisible(path string) error {
-	fi, err := os.Stat(path)
+	fi, err := os.Lstat(path)
 	if err != nil {
 		return fmt.Errorf("SQL Server reported success but %s is not readable; monodb-backup must run on the SQL Server host: %w", path, err)
+	}
+	if !fi.Mode().IsRegular() {
+		return fmt.Errorf("backup path %s is not a regular file", path)
 	}
 	if fi.Size() == 0 {
 		return fmt.Errorf("backup file %s is empty; monodb-backup must run on the SQL Server host", path)
@@ -196,6 +200,8 @@ func checkMSSQLBackupVisible(path string) error {
 
 func encryptMSSQLBackup(bakPath string) (string, error) {
 	archive := bakPath + ".7z"
+	// 7z a updates an existing archive, which fails when it was encrypted with another password.
+	_ = os.Remove(archive)
 	var stderr bytes.Buffer
 	cmd := exec.Command("7z", "a", "-t7z", "-mhe=on", "-mx0", "-p"+params.ArchivePass, archive, bakPath)
 	cmd.Stderr = &stderr
@@ -210,14 +216,23 @@ func encryptMSSQLBackup(bakPath string) (string, error) {
 
 func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 	name := dumpName(dbName, params.Rotation, "") + ".bak"
-	dumpPath := filepath.Join(dst, filepath.FromSlash(name))
+	dumpPath, err := filepath.Abs(filepath.Join(dst, filepath.FromSlash(name)))
+	if err != nil {
+		logger.Error("Couldn't resolve backup path under " + dst + " - Error: " + err.Error())
+		return "", "", err
+	}
 	dir := filepath.Dir(dumpPath)
+	root, err := filepath.Abs(params.BackupDestination)
+	if err != nil {
+		logger.Error("Couldn't resolve backup destination " + params.BackupDestination + " - Error: " + err.Error())
+		return "", "", err
+	}
 
 	if err := os.MkdirAll(dir, 0o770); err != nil {
 		logger.Error("Couldn't create parent directories at backup destination " + dst + ". Name: " + name + " - Error: " + err.Error())
 		return "", "", err
 	}
-	if err := grantServerAccess(params.BackupDestination, dir); err != nil {
+	if err := grantServerAccess(root, dir); err != nil {
 		logger.Error("Couldn't grant SQL Server access to " + dir + " - Error: " + err.Error())
 		return "", "", err
 	}

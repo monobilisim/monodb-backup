@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -140,6 +141,13 @@ func TestCheckMSSQLBackupVisibleExplainsColocation(t *testing.T) {
 	if err := checkMSSQLBackupVisible(one); err != nil {
 		t.Errorf("1-byte file: err = %v", err)
 	}
+	link := filepath.Join(dir, "link.bak")
+	if err := os.Symlink(one, link); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	if err := checkMSSQLBackupVisible(link); err == nil {
+		t.Error("symlink: expected error")
+	}
 }
 
 func TestMSSQLDumpIgnoresBackupAsTables(t *testing.T) {
@@ -188,9 +196,41 @@ func TestEncryptMSSQLBackupReplacesPlainFile(t *testing.T) {
 	if err := exec.Command("7z", "t", "-pwrong", got).Run(); err == nil {
 		t.Error("7z t with wrong password succeeded")
 	}
+	if err := exec.Command("7z", "l", "-pwrong", got).Run(); err == nil {
+		t.Error("7z l with wrong password succeeded: headers are not encrypted")
+	}
 }
 
 func TestEncryptMSSQLBackupFailureLeavesNoFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("needs a shell script as fake 7z")
+	}
+	fakeDir := t.TempDir()
+	script := "#!/bin/sh\nfor a in \"$@\"; do case \"$a\" in *.7z) : > \"$a\";; esac; done\necho boom-from-7z >&2\nexit 2\n"
+	if err := os.WriteFile(filepath.Join(fakeDir, "7z"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", fakeDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	oldParams := params
+	t.Cleanup(func() { params = oldParams })
+	params = &config.Params{ArchivePass: "s3cret"}
+
+	bak := filepath.Join(t.TempDir(), "app.bak")
+	if err := os.WriteFile(bak, []byte("data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := encryptMSSQLBackup(bak)
+	if err == nil || !strings.Contains(err.Error(), "boom-from-7z") {
+		t.Fatalf("err = %v, want 7z stderr", err)
+	}
+	for _, p := range []string{bak, bak + ".7z"} {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Errorf("%s left behind: %v", p, err)
+		}
+	}
+}
+
+func TestEncryptMSSQLBackupReplacesArchiveWithOtherPassword(t *testing.T) {
 	if _, err := exec.LookPath("7z"); err != nil {
 		t.Skip("7z not installed")
 	}
@@ -198,11 +238,23 @@ func TestEncryptMSSQLBackupFailureLeavesNoFiles(t *testing.T) {
 	t.Cleanup(func() { params = oldParams })
 	params = &config.Params{ArchivePass: "s3cret"}
 
-	bak := filepath.Join(t.TempDir(), "missing.bak")
-	if _, err := encryptMSSQLBackup(bak); err == nil {
-		t.Fatal("expected error")
+	dir := t.TempDir()
+	old := filepath.Join(dir, "old.bak")
+	if err := os.WriteFile(old, []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := os.Stat(bak + ".7z"); !os.IsNotExist(err) {
-		t.Errorf(".7z left behind: %v", err)
+	bak := filepath.Join(dir, "app.bak")
+	if out, err := exec.Command("7z", "a", "-t7z", "-mhe=on", "-poldpass", bak+".7z", old).CombinedOutput(); err != nil {
+		t.Fatalf("seed archive: %v\n%s", err, out)
+	}
+	if err := os.WriteFile(bak, []byte("new data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := encryptMSSQLBackup(bak)
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
+	if out, err := exec.Command("7z", "t", "-ps3cret", got).CombinedOutput(); err != nil {
+		t.Errorf("7z t failed: %v\n%s", err, out)
 	}
 }
