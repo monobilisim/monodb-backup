@@ -30,8 +30,16 @@ func splitMSSQLHost(host string) (string, string) {
 	return name, instance
 }
 
+// "." and "(local)" are the Windows spellings of the local machine.
+func isLocalAlias(name string) bool {
+	return name == "." || strings.EqualFold(name, "(local)")
+}
+
 func mssqlDSN(r config.Remote) string {
 	host, instance := splitMSSQLHost(r.Host)
+	if isLocalAlias(host) {
+		host = "localhost"
+	}
 	u := url.URL{Scheme: "sqlserver"}
 	if r.Port != "" {
 		u.Host = net.JoinHostPort(host, r.Port)
@@ -59,6 +67,9 @@ func isLocalHost(host string) (bool, error) {
 	name, _ := splitMSSQLHost(host)
 	if name == "" {
 		return false, errors.New("empty host")
+	}
+	if isLocalAlias(name) {
+		return true, nil
 	}
 	var ips []net.IP
 	if ip := net.ParseIP(name); ip != nil {

@@ -33,6 +33,9 @@ func TestMSSQLDSNEscapesCredentials(t *testing.T) {
 		{"ipv6 no port", config.Remote{Host: "::1", User: "backup", Password: pass}, "[::1]:1433", "", false, "backup"},
 		{"no port", config.Remote{Host: "db.internal", User: "backup", Password: pass}, "db.internal", "", false, "backup"},
 		{"instance", config.Remote{Host: `localhost\SQLEXPRESS`, User: "backup", Password: pass}, "localhost", "/SQLEXPRESS", false, "backup"},
+		{"dot", config.Remote{Host: ".", User: "backup", Password: pass}, "localhost", "", false, "backup"},
+		{"dot instance", config.Remote{Host: `.\SQLEXPRESS`, User: "backup", Password: pass}, "localhost", "/SQLEXPRESS", false, "backup"},
+		{"local alias", config.Remote{Host: "(LOCAL)", Port: "1434", User: "backup", Password: pass}, "localhost:1434", "", false, "backup"},
 		{"no credentials", config.Remote{Host: "db.internal"}, "db.internal", "", true, ""},
 	}
 	for _, tt := range tests {
@@ -76,7 +79,7 @@ func TestMSSQLDSNEscapesCredentials(t *testing.T) {
 }
 
 func TestIsLocalHost(t *testing.T) {
-	for _, host := range []string{"127.0.0.1", "::1", "localhost", `localhost\SQLEXPRESS`} {
+	for _, host := range []string{"127.0.0.1", "::1", "localhost", `localhost\SQLEXPRESS`, ".", `.\SQLEXPRESS`, "(local)", "(LOCAL)"} {
 		got, err := isLocalHost(host)
 		if err != nil || !got {
 			t.Errorf("isLocalHost(%q) = %v, %v; want true, nil", host, got, err)
