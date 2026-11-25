@@ -3,19 +3,13 @@
 package backup
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/hectane/go-acl"
 	"golang.org/x/sys/windows"
 )
 
 func initServerDirOwner(root string) error {
-	info, err := os.Stat(root)
-	if err != nil || !info.IsDir() {
-		return fmt.Errorf("backupDestination %q must be an existing directory owned by the SQL Server service account", root)
-	}
-	return nil
+	_, err := statDestination(root)
+	return err
 }
 
 func grantServerAccess(_, dir string) error {

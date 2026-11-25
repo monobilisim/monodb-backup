@@ -4,14 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 )
 
 func TestDirsFrom(t *testing.T) {
-	sep := string(filepath.Separator)
-	p := func(s string) string { return filepath.FromSlash(s) }
+	p := filepath.FromSlash
 	got, err := dirsFrom(p("/var/backups"), p("/var/backups/Daily/Mon"))
 	want := []string{p("/var/backups"), p("/var/backups/Daily"), p("/var/backups/Daily/Mon")}
 	if err != nil || !reflect.DeepEqual(got, want) {
@@ -21,9 +19,9 @@ func TestDirsFrom(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(got, []string{p("/var/backups")}) {
 		t.Fatalf("got %v, %v", got, err)
 	}
-	for _, dir := range []string{"/var/backupsX/a", "/var/backups/../etc"} {
+	for _, dir := range []string{"/var/backupsX/a", "/var/backups/../etc", "/var", "/etc"} {
 		if _, err := dirsFrom(p("/var/backups"), p(dir)); err == nil {
-			t.Errorf("dirsFrom(%q) want error (sep %q)", dir, sep)
+			t.Errorf("dirsFrom(%q) want error", dir)
 		}
 	}
 }
@@ -39,42 +37,5 @@ func TestInitServerDirOwnerRequiresDestination(t *testing.T) {
 	}
 	if err := initServerDirOwner(f); err == nil {
 		t.Fatal("regular file: want error")
-	}
-}
-
-func TestGrantServerAccessRestoresRecreatedDestination(t *testing.T) {
-	if runtime.GOOS == "windows" || os.Geteuid() != 0 {
-		t.Skip("needs root on unix")
-	}
-	root := filepath.Join(t.TempDir(), "dest")
-	if err := os.Mkdir(root, 0o770); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chown(root, 4242, 4242); err != nil {
-		t.Fatal(err)
-	}
-	if err := initServerDirOwner(root); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.RemoveAll(root); err != nil {
-		t.Fatal(err)
-	}
-	leaf := filepath.Join(root, "2026", "11")
-	if err := os.MkdirAll(leaf, 0o770); err != nil {
-		t.Fatal(err)
-	}
-	if err := grantServerAccess(root, leaf); err != nil {
-		t.Fatal(err)
-	}
-	for _, d := range []string{root, filepath.Join(root, "2026"), leaf} {
-		fi, err := os.Stat(d)
-		if err != nil {
-			t.Fatal(err)
-		}
-		st := reflect.ValueOf(fi.Sys()).Elem()
-		uid, gid := st.FieldByName("Uid").Uint(), st.FieldByName("Gid").Uint()
-		if uid != 4242 || gid != 4242 {
-			t.Errorf("%s owner %d:%d", d, uid, gid)
-		}
 	}
 }

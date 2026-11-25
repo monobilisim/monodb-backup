@@ -5,6 +5,7 @@ package backup
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"syscall"
 )
 
@@ -13,19 +14,22 @@ type dirOwner struct{ uid, gid int }
 var serverOwner *dirOwner
 
 func initServerDirOwner(root string) error {
-	info, err := os.Stat(root)
-	if err != nil || !info.IsDir() {
-		return fmt.Errorf("backupDestination %q must be an existing directory owned by the SQL Server service account", root)
+	info, err := statDestination(root)
+	if err != nil {
+		return err
 	}
 	if os.Geteuid() != 0 {
 		return nil
 	}
-	if st, ok := info.Sys().(*syscall.Stat_t); ok {
-		serverOwner = &dirOwner{int(st.Uid), int(st.Gid)}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("backupDestination %q: cannot read owner", root)
 	}
+	serverOwner = &dirOwner{int(st.Uid), int(st.Gid)}
 	return nil
 }
 
+// Symlinks are never followed: the SQL Server account owns this tree and could plant one while we run as root.
 func grantServerAccess(root, dir string) error {
 	if serverOwner == nil {
 		return nil
@@ -34,10 +38,42 @@ func grantServerAccess(root, dir string) error {
 	if err != nil {
 		return err
 	}
-	for _, d := range dirs {
-		if err := os.Chown(d, serverOwner.uid, serverOwner.gid); err != nil {
+	root = dirs[0]
+	if err := requireRealDir(os.Lstat(root)); err != nil {
+		return err
+	}
+	if err := os.Lchown(root, serverOwner.uid, serverOwner.gid); err != nil {
+		return err
+	}
+	if len(dirs) == 1 {
+		return nil
+	}
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	for _, d := range dirs[1:] {
+		rel, err := filepath.Rel(root, d)
+		if err != nil {
 			return err
 		}
+		if err := requireRealDir(r.Lstat(rel)); err != nil {
+			return err
+		}
+		if err := r.Lchown(rel, serverOwner.uid, serverOwner.gid); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func requireRealDir(info os.FileInfo, err error) error {
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return fmt.Errorf("%s is not a real directory", info.Name())
 	}
 	return nil
 }

@@ -2,6 +2,7 @@ package backup
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -22,4 +23,16 @@ func dirsFrom(root, dir string) ([]string, error) {
 		dirs = append(dirs, cur)
 	}
 	return dirs, nil
+}
+
+func statDestination(root string) (os.FileInfo, error) {
+	const hint = "backupDestination %q must be an existing directory owned by the SQL Server service account"
+	info, err := os.Stat(root)
+	if err != nil {
+		return nil, fmt.Errorf(hint+": %w", root, err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf(hint, root)
+	}
+	return info, nil
 }
