@@ -195,7 +195,10 @@ func mssqlSupportsCompression(ctx context.Context) (bool, error) {
 	return ok == 1, nil
 }
 
-func checkMSSQLBackupVisible(path string) error {
+// Filesystem timestamps can be coarse, so allow a little slack before the statement start.
+const mssqlMtimeSlack = 2 * time.Second
+
+func checkMSSQLBackupVisible(path string, since time.Time) error {
 	fi, err := os.Lstat(path)
 	if err != nil {
 		return fmt.Errorf("SQL Server reported success but %s is not readable; monodb-backup must run on the SQL Server host: %w", path, err)
@@ -205,6 +208,9 @@ func checkMSSQLBackupVisible(path string) error {
 	}
 	if fi.Size() == 0 {
 		return fmt.Errorf("backup file %s is empty; monodb-backup must run on the SQL Server host", path)
+	}
+	if fi.ModTime().Before(since.Add(-mssqlMtimeSlack)) {
+		return fmt.Errorf("backup file %s is older than this backup run; SQL Server did not write it here, monodb-backup must run on the SQL Server host", path)
 	}
 	return nil
 }
@@ -279,6 +285,7 @@ func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 	encrypted := params.ArchivePass != ""
 	logger.Info("MSSQL backup started. DB: " + dbName + " - Compression: " + strconv.FormatBool(compress) + " - Encrypted: " + strconv.FormatBool(encrypted))
 
+	started := time.Now()
 	_, err = mssqlDB.ExecContext(ctx, mssqlBackupStatement(compress), sql.Named("db", dbName), sql.Named("path", dumpPath))
 	if err != nil {
 		if rmErr := os.Remove(dumpPath); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
@@ -287,7 +294,7 @@ func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 		logger.Error("Couldn't back up database: " + dbName + " - Error: " + err.Error())
 		return "", "", err
 	}
-	if err := checkMSSQLBackupVisible(dumpPath); err != nil {
+	if err := checkMSSQLBackupVisible(dumpPath, started); err != nil {
 		_ = os.Remove(dumpPath)
 		logger.Error("Couldn't back up database: " + dbName + " - Error: " + err.Error())
 		return "", "", err

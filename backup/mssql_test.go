@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"monodb-backup/clog"
 	"monodb-backup/config"
@@ -128,7 +129,7 @@ func TestMSSQLBackupStatement(t *testing.T) {
 
 func TestCheckMSSQLBackupVisibleExplainsColocation(t *testing.T) {
 	dir := t.TempDir()
-	err := checkMSSQLBackupVisible(filepath.Join(dir, "missing.bak"))
+	err := checkMSSQLBackupVisible(filepath.Join(dir, "missing.bak"), time.Now())
 	if err == nil || !strings.Contains(err.Error(), "must run on the SQL Server host") {
 		t.Errorf("missing path: err = %v", err)
 	}
@@ -136,21 +137,35 @@ func TestCheckMSSQLBackupVisibleExplainsColocation(t *testing.T) {
 	if err := os.WriteFile(empty, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkMSSQLBackupVisible(empty); err == nil {
+	if err := checkMSSQLBackupVisible(empty, time.Now()); err == nil {
 		t.Error("empty file: expected error")
 	}
 	one := filepath.Join(dir, "one.bak")
 	if err := os.WriteFile(one, []byte{1}, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkMSSQLBackupVisible(one); err != nil {
+	if err := checkMSSQLBackupVisible(one, time.Now()); err != nil {
 		t.Errorf("1-byte file: err = %v", err)
+	}
+	old := filepath.Join(dir, "old.bak")
+	if err := os.WriteFile(old, []byte{1}, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(old, past, past); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkMSSQLBackupVisible(old, time.Now()); err == nil {
+		t.Error("stale file: expected error")
+	}
+	if err := checkMSSQLBackupVisible(old, past.Add(time.Second)); err != nil {
+		t.Errorf("file within slack: err = %v", err)
 	}
 	link := filepath.Join(dir, "link.bak")
 	if err := os.Symlink(one, link); err != nil {
 		t.Skipf("symlink unsupported: %v", err)
 	}
-	if err := checkMSSQLBackupVisible(link); err == nil {
+	if err := checkMSSQLBackupVisible(link, time.Now()); err == nil {
 		t.Error("symlink: expected error")
 	}
 }
