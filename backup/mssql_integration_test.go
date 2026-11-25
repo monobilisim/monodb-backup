@@ -242,6 +242,9 @@ func TestMSSQLIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _ = os.RemoveAll(out) })
+		if err := os.Chmod(out, 0o755); err != nil {
+			t.Fatal(err)
+		}
 		if b, err := exec.Command("7z", "x", "-ps3cret", "-o"+out, p).CombinedOutput(); err != nil {
 			t.Fatalf("7z x: %v: %s", err, b)
 		}

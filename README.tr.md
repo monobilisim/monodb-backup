@@ -80,12 +80,12 @@ Yapılandırma dosyası YAML biçimindedir. Mevcut seçenekler şunlardır:
 
 ## MSSQL notları
 
-- monodb-backup'ı SQL Server'ın çalıştığı makinede, root olarak ya da SQL Server servis hesabıyla çalıştırın.
-- `remote` bloğu zorunludur. SQL oturum açma bilgisi kullanın; Windows'ta `user` boşsa tümleşik kimlik doğrulama kullanılır.
+- monodb-backup'ı SQL Server'ın çalıştığı makinede, root olarak ya da SQL Server servis hesabıyla çalıştırın. Başka bir kullanıcıyla çalıştırmak desteklenmez.
+- `remote` bloğu zorunludur ve SQL oturum açma bilgisiyle doldurulur. Windows'ta `user` boş bırakılırsa tümleşik kimlik doğrulama kullanılır.
 - `backupDestination` dizini var olmalı ve servis hesabına ait olmalıdır (`chown mssql: /var/backups`). monodb-backup root olarak çalışıyorsa yeni alt klasörler servis hesabına otomatik devredilir.
 - Yedekler `COPY_ONLY` alınır, mevcut yedek zincirlerine dokunulmaz.
 - Express ve Web sürümlerinde yedekler sıkıştırılmaz.
-- MSSQL yedekleri önce yerel diske yazılır, sonra yüklenir; akış (stream) yoluyla gönderilmez.
+- MSSQL yedekleri önce yerel diske yazılıp sonra yüklenir, akış (stream) yoluyla gönderilmez.
 - `backupAsTables` yok sayılır.
 
 ---
