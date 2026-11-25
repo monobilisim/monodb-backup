@@ -1,7 +1,11 @@
 package backup
 
 import (
+	"context"
+	"database/sql"
+	"net"
 	"net/url"
+	"strings"
 	"testing"
 
 	"monodb-backup/config"
@@ -19,6 +23,7 @@ func TestMSSQLDSNEscapesCredentials(t *testing.T) {
 	}{
 		{"host and port", config.Remote{Host: "db.internal", Port: "1433", User: "backup", Password: pass}, "db.internal:1433", "", false, "backup"},
 		{"ipv6", config.Remote{Host: "::1", Port: "1433", User: "backup", Password: pass}, "[::1]:1433", "", false, "backup"},
+		{"ipv6 no port", config.Remote{Host: "::1", User: "backup", Password: pass}, "[::1]:1433", "", false, "backup"},
 		{"no port", config.Remote{Host: "db.internal", User: "backup", Password: pass}, "db.internal", "", false, "backup"},
 		{"instance", config.Remote{Host: `localhost\SQLEXPRESS`, User: "backup", Password: pass}, "localhost", "/SQLEXPRESS", false, "backup"},
 		{"no credentials", config.Remote{Host: "db.internal"}, "db.internal", "", true, ""},
@@ -37,6 +42,9 @@ func TestMSSQLDSNEscapesCredentials(t *testing.T) {
 			}
 			if got := u.Query().Get("app name"); got != "monodb-backup" {
 				t.Errorf("app name = %q", got)
+			}
+			if u.Query().Has("encrypt") || len(u.Query()) != 2 {
+				t.Errorf("unexpected query %q", u.RawQuery)
 			}
 			if u.Host != tt.host {
 				t.Errorf("host = %q, want %q", u.Host, tt.host)
@@ -67,10 +75,33 @@ func TestIsLocalHost(t *testing.T) {
 			t.Errorf("isLocalHost(%q) = %v, %v; want true, nil", host, got, err)
 		}
 	}
+	addrs, _ := net.InterfaceAddrs()
+	for _, a := range addrs {
+		if ipNet, ok := a.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+			if got, err := isLocalHost(ipNet.IP.String()); err != nil || !got {
+				t.Errorf("isLocalHost(%s) = %v, %v; want true, nil", ipNet.IP, got, err)
+			}
+			break
+		}
+	}
 	if got, err := isLocalHost("192.0.2.10"); err != nil || got {
 		t.Errorf("isLocalHost(192.0.2.10) = %v, %v; want false, nil", got, err)
 	}
 	if _, err := isLocalHost(""); err == nil {
 		t.Error("isLocalHost(\"\") returned no error")
+	}
+}
+
+func TestMSSQLConnectErrorHidesPassword(t *testing.T) {
+	db, err := sql.Open("sqlserver", mssqlDSN(config.Remote{Host: "localhost", Port: "x", User: "u", Password: "s3cret"}))
+	if err == nil {
+		defer func() { _ = db.Close() }()
+		err = db.PingContext(context.Background())
+	}
+	if err == nil {
+		t.Fatal("expected a connection error")
+	}
+	if msg := mssqlConnectError(err); strings.Contains(msg, "s3cret") {
+		t.Errorf("message leaks password: %s", msg)
 	}
 }

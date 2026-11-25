@@ -32,6 +32,8 @@ func mssqlDSN(r config.Remote) string {
 	u := url.URL{Scheme: "sqlserver"}
 	if r.Port != "" {
 		u.Host = net.JoinHostPort(host, r.Port)
+	} else if strings.Contains(host, ":") && instance == "" {
+		u.Host = net.JoinHostPort(host, "1433")
 	} else if strings.Contains(host, ":") {
 		u.Host = "[" + host + "]"
 	} else {
@@ -70,15 +72,29 @@ func isLocalHost(host string) (bool, error) {
 	}
 	for _, ip := range ips {
 		if ip.IsLoopback() {
-			return true, nil
+			continue
 		}
+		found := false
 		for _, a := range addrs {
 			if ipNet, ok := a.(*net.IPNet); ok && ipNet.IP.Equal(ip) {
-				return true, nil
+				found = true
+				break
 			}
 		}
+		if !found {
+			return false, nil
+		}
 	}
-	return false, nil
+	return len(ips) > 0, nil
+}
+
+// mssqlConnectError drops the *url.Error wrapper, whose text embeds the DSN with the password.
+func mssqlConnectError(err error) string {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		err = ue.Err
+	}
+	return "Couldn't connect to MSSQL - Error: " + err.Error()
 }
 
 func mssqlFatal(msg string) {
@@ -91,7 +107,17 @@ func InitializeMSSQL() {
 		mssqlFatal("Remote should be enabled when backing up MSSQL databases.")
 		return
 	}
-	if local, err := isLocalHost(params.Remote.Host); err != nil || !local {
+	if port := params.Remote.Port; port != "" {
+		if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+			mssqlFatal("MSSQL remote.port must be a number between 1 and 65535")
+			return
+		}
+	}
+	local, err := isLocalHost(params.Remote.Host)
+	if err != nil {
+		logger.Error("Couldn't resolve MSSQL host " + params.Remote.Host + " - Error: " + err.Error())
+	}
+	if err != nil || !local {
 		mssqlFatal("MSSQL backups must run on the SQL Server host; remote.host " + params.Remote.Host + " is not an address of this machine")
 		return
 	}
@@ -102,7 +128,7 @@ func InitializeMSSQL() {
 		err = db.PingContext(ctx)
 	}
 	if err != nil {
-		mssqlFatal("Couldn't connect to MSSQL - Error: " + err.Error())
+		mssqlFatal(mssqlConnectError(err))
 		return
 	}
 	mssqlDB = db
