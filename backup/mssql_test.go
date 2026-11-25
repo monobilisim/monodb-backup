@@ -312,3 +312,23 @@ func TestDumpMSSQLDBRejectsNameOutsideDestination(t *testing.T) {
 		t.Errorf("directory outside the destination was created: %v", err)
 	}
 }
+
+func TestRestoreMSSQLDestinationRecreatesRoot(t *testing.T) {
+	oldParams := params
+	t.Cleanup(func() { params = oldParams })
+	clog.InitializeLogger()
+
+	dest := filepath.Join(t.TempDir(), "dest")
+	params = &config.Params{Database: "mssql", BackupDestination: dest}
+	restoreMSSQLDestination()
+	if fi, err := os.Stat(dest); err != nil || !fi.IsDir() {
+		t.Fatalf("destination not recreated: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dest, "keep"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	restoreMSSQLDestination()
+	if _, err := os.Stat(filepath.Join(dest, "keep")); err != nil {
+		t.Errorf("existing destination was touched: %v", err)
+	}
+}

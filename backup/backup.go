@@ -218,6 +218,9 @@ func Backup() {
 			} else {
 				logger.Info("Dump file at " + params.BackupDestination + "/" + db + " successfully deleted.")
 			}
+			if params.Database == "mssql" {
+				restoreMSSQLDestination()
+			}
 		} else {
 			if params.Rotation.Keep.Daily > 0 || params.Rotation.Keep.Weekly > 0 || params.Rotation.Keep.Monthly > 0 {
 				if err := cleanupLocal(); err != nil {

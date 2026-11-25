@@ -262,11 +262,28 @@ func TestMSSQLIntegration(t *testing.T) {
 		params.Databases = []string{"smoke"}
 		params.BackupType.Type = ""
 		params.RemoveLocal = false
+		params.BackupAsTables = true
+		t.Cleanup(func() { params.BackupAsTables = false })
 		notify.SuccessfulDBList, notify.FailedDBList = nil, nil
 		Backup()
 		Backup()
 		if len(notify.SuccessfulDBList) != 2 || len(notify.FailedDBList) != 0 {
 			t.Errorf("successful %v, failed %v; want 2 and 0", notify.SuccessfulDBList, notify.FailedDBList)
+		}
+	})
+
+	t.Run("remove local without rotation", func(t *testing.T) {
+		params.Rotation.Enabled = false
+		params.RemoveLocal = true
+		t.Cleanup(func() { params.Rotation.Enabled, params.RemoveLocal = true, false })
+		params.Databases = []string{"smoke"}
+		notify.SuccessfulDBList, notify.FailedDBList = nil, nil
+		Backup()
+		if len(notify.SuccessfulDBList) != 1 || len(notify.FailedDBList) != 0 {
+			t.Errorf("successful %v, failed %v; want 1 and 0", notify.SuccessfulDBList, notify.FailedDBList)
+		}
+		if err := initServerDirOwner(dir); err != nil {
+			t.Errorf("destination unusable after the run: %v", err)
 		}
 	})
 }

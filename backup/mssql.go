@@ -214,6 +214,22 @@ func encryptMSSQLBackup(bakPath string) (string, error) {
 	return archive, nil
 }
 
+// With rotation off the removed dst is the destination itself, which the operator chowned once.
+func restoreMSSQLDestination() {
+	root, err := filepath.Abs(params.BackupDestination)
+	if err == nil {
+		if _, statErr := os.Lstat(root); statErr == nil {
+			return
+		}
+		if err = os.MkdirAll(root, 0o770); err == nil {
+			err = grantServerAccess(root, root)
+		}
+	}
+	if err != nil {
+		logger.Error("Couldn't recreate backup destination " + params.BackupDestination + " - Error: " + err.Error())
+	}
+}
+
 func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 	name := dumpName(dbName, params.Rotation, "") + ".bak"
 	dumpPath, err := filepath.Abs(filepath.Join(dst, filepath.FromSlash(name)))
