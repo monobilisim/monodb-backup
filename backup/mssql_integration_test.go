@@ -248,7 +248,11 @@ func TestMSSQLIntegration(t *testing.T) {
 		if b, err := exec.Command("7z", "x", "-ps3cret", "-o"+out, p).CombinedOutput(); err != nil {
 			t.Fatalf("7z x: %v: %s", err, b)
 		}
-		restoreMSSQL(t, filepath.Join(out, filepath.Base(strings.TrimSuffix(p, ".7z"))), "smoke_enc_restored")
+		extracted := filepath.Join(out, filepath.Base(strings.TrimSuffix(p, ".7z")))
+		if err := os.Chmod(extracted, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		restoreMSSQL(t, extracted, "smoke_enc_restored")
 		if got := countRows(t, "smoke_enc_restored"); got != 1000 {
 			t.Errorf("restored rows = %d, want 1000", got)
 		}
