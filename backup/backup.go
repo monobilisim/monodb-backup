@@ -170,7 +170,7 @@ func Backup() {
 		for i := 1; i < len(fullPath)-1; i++ {
 			dst = dst + "/" + fullPath[i]
 		}
-		if params.BackupAsTables && db != "mysql" && params.Database != "mongodb" {
+		if params.BackupAsTables && db != "mysql" && params.Database != "mongodb" && params.Database != "mssql" {
 			dumpPaths, names, err := dumpDBWithTables(db, dst)
 			if err != nil {
 				// notify.SendAlarm("Problem during backing up "+db+" - Error: "+err.Error(), true)

@@ -1,12 +1,15 @@
 package backup
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -131,6 +134,10 @@ func InitializeMSSQL() {
 		mssqlFatal(mssqlConnectError(err))
 		return
 	}
+	if err := initServerDirOwner(params.BackupDestination); err != nil {
+		mssqlFatal("Couldn't prepare backup destination for SQL Server - Error: " + err.Error())
+		return
+	}
 	mssqlDB = db
 }
 
@@ -159,27 +166,93 @@ func getMSSQLList() []string {
 	return dbList
 }
 
+func mssqlBackupStatement(compress bool) string {
+	s := "BACKUP DATABASE @db TO DISK = @path WITH COPY_ONLY, FORMAT, INIT, CHECKSUM"
+	if compress {
+		s += ", COMPRESSION"
+	}
+	return s
+}
+
+// EngineEdition 4 is Express, which rejects COMPRESSION.
+func mssqlSupportsCompression(ctx context.Context) (bool, error) {
+	var edition int
+	if err := mssqlDB.QueryRowContext(ctx, "SELECT CAST(SERVERPROPERTY('EngineEdition') AS int)").Scan(&edition); err != nil {
+		return false, err
+	}
+	return edition != 4, nil
+}
+
+func checkMSSQLBackupVisible(path string) error {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("SQL Server reported success but %s is not readable; monodb-backup must run on the SQL Server host: %w", path, err)
+	}
+	if fi.Size() == 0 {
+		return fmt.Errorf("backup file %s is empty; monodb-backup must run on the SQL Server host", path)
+	}
+	return nil
+}
+
+func encryptMSSQLBackup(bakPath string) (string, error) {
+	archive := bakPath + ".7z"
+	var stderr bytes.Buffer
+	cmd := exec.Command("7z", "a", "-t7z", "-mhe=on", "-mx0", "-p"+params.ArchivePass, archive, bakPath)
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	_ = os.Remove(bakPath)
+	if err != nil {
+		_ = os.Remove(archive)
+		return "", fmt.Errorf("7z failed: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return archive, nil
+}
+
 func dumpMSSQLDB(dbName, dst string) (string, string, error) {
-	var name string
-	encrypted := params.ArchivePass != ""
+	name := dumpName(dbName, params.Rotation, "") + ".bak"
+	dumpPath := filepath.Join(dst, filepath.FromSlash(name))
+	dir := filepath.Dir(dumpPath)
 
-	logger.Info("MSSQL backup started. DB: " + dbName + " - Encrypted: " + strconv.FormatBool(encrypted))
-	name = dumpName(dbName, params.Rotation, "") + ".bak"
-	dumpPath := dst + filepath.FromSlash(name)
-
-	if err := os.MkdirAll(filepath.Dir(dumpPath), 0770); err != nil {
+	if err := os.MkdirAll(dir, 0o770); err != nil {
 		logger.Error("Couldn't create parent directories at backup destination " + dst + ". Name: " + name + " - Error: " + err.Error())
 		return "", "", err
 	}
-	query := "BACKUP DATABASE [" + dbName + "]" +
-		" TO DISK = '" + dumpPath + "'" +
-		" WITH COMPRESSION;"
+	if err := grantServerAccess(params.BackupDestination, dir); err != nil {
+		logger.Error("Couldn't grant SQL Server access to " + dir + " - Error: " + err.Error())
+		return "", "", err
+	}
 
-	ctx := context.Background()
-	_, err := mssqlDB.ExecContext(ctx, query)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(params.CtxCancel)*time.Hour)
+	defer cancel()
+
+	compress, err := mssqlSupportsCompression(ctx)
 	if err != nil {
+		logger.Error("Couldn't detect MSSQL edition - Error: " + err.Error())
+		return "", "", err
+	}
+	encrypted := params.ArchivePass != ""
+	logger.Info("MSSQL backup started. DB: " + dbName + " - Compression: " + strconv.FormatBool(compress) + " - Encrypted: " + strconv.FormatBool(encrypted))
+
+	_, err = mssqlDB.ExecContext(ctx, mssqlBackupStatement(compress), sql.Named("db", dbName), sql.Named("path", dumpPath))
+	if err != nil {
+		if rmErr := os.Remove(dumpPath); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
+			logger.Error("Couldn't remove partial backup " + dumpPath + " - Error: " + rmErr.Error())
+		}
 		logger.Error("Couldn't back up database: " + dbName + " - Error: " + err.Error())
 		return "", "", err
 	}
-	return dumpPath, name, nil
+	if err := checkMSSQLBackupVisible(dumpPath); err != nil {
+		_ = os.Remove(dumpPath)
+		logger.Error("Couldn't back up database: " + dbName + " - Error: " + err.Error())
+		return "", "", err
+	}
+	if !encrypted {
+		return dumpPath, name, nil
+	}
+	archive, err := encryptMSSQLBackup(dumpPath)
+	if err != nil {
+		logger.Error("Couldn't encrypt backup of database: " + dbName + " - Error: " + err.Error())
+		return "", "", err
+	}
+	return archive, name + ".7z", nil
 }

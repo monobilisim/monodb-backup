@@ -2,9 +2,13 @@ package backup
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"net"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -103,5 +107,102 @@ func TestMSSQLConnectErrorHidesPassword(t *testing.T) {
 	}
 	if msg := mssqlConnectError(err); strings.Contains(msg, "s3cret") {
 		t.Errorf("message leaks password: %s", msg)
+	}
+}
+
+func TestMSSQLBackupStatement(t *testing.T) {
+	const base = "BACKUP DATABASE @db TO DISK = @path WITH COPY_ONLY, FORMAT, INIT, CHECKSUM"
+	if got := mssqlBackupStatement(false); got != base {
+		t.Errorf("statement(false) = %q", got)
+	}
+	if got := mssqlBackupStatement(true); got != base+", COMPRESSION" {
+		t.Errorf("statement(true) = %q", got)
+	}
+}
+
+func TestCheckMSSQLBackupVisibleExplainsColocation(t *testing.T) {
+	dir := t.TempDir()
+	err := checkMSSQLBackupVisible(filepath.Join(dir, "missing.bak"))
+	if err == nil || !strings.Contains(err.Error(), "must run on the SQL Server host") {
+		t.Errorf("missing path: err = %v", err)
+	}
+	empty := filepath.Join(dir, "empty.bak")
+	if err := os.WriteFile(empty, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkMSSQLBackupVisible(empty); err == nil {
+		t.Error("empty file: expected error")
+	}
+	one := filepath.Join(dir, "one.bak")
+	if err := os.WriteFile(one, []byte{1}, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkMSSQLBackupVisible(one); err != nil {
+		t.Errorf("1-byte file: err = %v", err)
+	}
+}
+
+func TestMSSQLDumpIgnoresBackupAsTables(t *testing.T) {
+	oldParams, oldDateNow := params, dateNow
+	t.Cleanup(func() {
+		params, dateNow = oldParams, oldDateNow
+	})
+	params = &config.Params{Database: "mssql", BackupAsTables: true}
+	dateNow = rightNow{day: "Thursday"}
+
+	got := dumpName("app", config.Rotation{Enabled: true, Suffix: "day"}, "")
+	if got != "app-Thursday" {
+		t.Fatalf("dumpName() = %q, want %q", got, "app-Thursday")
+	}
+}
+
+func TestEncryptMSSQLBackupReplacesPlainFile(t *testing.T) {
+	if _, err := exec.LookPath("7z"); err != nil {
+		t.Skip("7z not installed")
+	}
+	oldParams := params
+	t.Cleanup(func() { params = oldParams })
+	params = &config.Params{ArchivePass: "s3cret"}
+
+	bak := filepath.Join(t.TempDir(), "app-Mon.bak")
+	data := make([]byte, 64<<10)
+	if _, err := rand.Read(data); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bak, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := encryptMSSQLBackup(bak)
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
+	if got != bak+".7z" {
+		t.Errorf("path = %q", got)
+	}
+	if _, err := os.Stat(bak); !os.IsNotExist(err) {
+		t.Errorf("plain .bak still present: %v", err)
+	}
+	if out, err := exec.Command("7z", "t", "-ps3cret", got).CombinedOutput(); err != nil {
+		t.Errorf("7z t with right password failed: %v\n%s", err, out)
+	}
+	if err := exec.Command("7z", "t", "-pwrong", got).Run(); err == nil {
+		t.Error("7z t with wrong password succeeded")
+	}
+}
+
+func TestEncryptMSSQLBackupFailureLeavesNoFiles(t *testing.T) {
+	if _, err := exec.LookPath("7z"); err != nil {
+		t.Skip("7z not installed")
+	}
+	oldParams := params
+	t.Cleanup(func() { params = oldParams })
+	params = &config.Params{ArchivePass: "s3cret"}
+
+	bak := filepath.Join(t.TempDir(), "missing.bak")
+	if _, err := encryptMSSQLBackup(bak); err == nil {
+		t.Fatal("expected error")
+	}
+	if _, err := os.Stat(bak + ".7z"); !os.IsNotExist(err) {
+		t.Errorf(".7z left behind: %v", err)
 	}
 }
