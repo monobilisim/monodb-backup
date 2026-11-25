@@ -81,8 +81,8 @@ See `config/config.sample.yml` for an example configuration file.
 ## MSSQL notes
 
 - Run monodb-backup on the SQL Server host, as root or as the SQL Server service account. Running as any other user is unsupported.
-- The `remote` block is required. Use a SQL login; on Windows an empty `user` uses integrated authentication.
-- `backupDestination` must exist and be owned by the service account (`chown mssql: /var/backups`). New subfolders follow automatically when monodb-backup runs as root.
+- The `remote` block is required and `remote.isRemote` must be `true`. Use a SQL login; on Windows an empty `user` uses integrated authentication.
+- `backupDestination` must exist and be owned by the service account (`chown mssql: /var/backups/mssql`). New subfolders follow automatically when monodb-backup runs as root.
 - Backups are `COPY_ONLY`, so existing backup chains are left alone.
 - Express and Web edition backups are uncompressed.
 - MSSQL backups are written locally and then uploaded, never streamed.
