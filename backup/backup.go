@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,6 +26,10 @@ var (
 
 var Retrying = false
 var FailedDBNames []string
+
+func hasDotDotElement(name string) bool {
+	return slices.Contains(strings.FieldsFunc(name, func(r rune) bool { return r == '/' || r == '\\' }), "..")
+}
 
 func init() {
 	appStartTime = time.Now()
@@ -159,6 +164,13 @@ func Backup() {
 		currentDB = db
 		currentDBStartTime = time.Now()
 		mu.Unlock()
+		if hasDotDotElement(db) {
+			msg := "database name " + strconv.Quote(db) + " contains a '..' path element and was skipped"
+			logger.Error(msg)
+			notify.FailedDBList = append(notify.FailedDBList, db+" - Error: "+msg)
+			FailedDBNames = append(FailedDBNames, db)
+			continue
+		}
 		var dst string
 		if runtime.GOOS == "windows" {
 			dst = strings.TrimSuffix(params.BackupDestination, "/") + db

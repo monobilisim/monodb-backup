@@ -13,7 +13,9 @@ import (
 	"strings"
 	"testing"
 
+	"monodb-backup/clog"
 	"monodb-backup/config"
+	"monodb-backup/notify"
 )
 
 func TestMSSQLDSNEscapesCredentials(t *testing.T) {
@@ -256,5 +258,57 @@ func TestEncryptMSSQLBackupReplacesArchiveWithOtherPassword(t *testing.T) {
 	}
 	if out, err := exec.Command("7z", "t", "-ps3cret", got).CombinedOutput(); err != nil {
 		t.Errorf("7z t failed: %v\n%s", err, out)
+	}
+}
+
+func TestBackupSkipsDotDotDatabaseNames(t *testing.T) {
+	oldParams, oldDateNow, oldFailed := params, dateNow, FailedDBNames
+	oldList, oldOK := notify.FailedDBList, notify.SuccessfulDBList
+	t.Cleanup(func() {
+		params, dateNow, FailedDBNames = oldParams, oldDateNow, oldFailed
+		notify.FailedDBList, notify.SuccessfulDBList = oldList, oldOK
+	})
+	clog.InitializeLogger()
+
+	tree := t.TempDir()
+	dest := filepath.Join(tree, "dest")
+	victim := filepath.Join(tree, "victim")
+	for _, d := range []string{dest, victim} {
+		if err := os.Mkdir(d, 0o770); err != nil {
+			t.Fatal(err)
+		}
+	}
+	params = &config.Params{Database: "mssql", BackupDestination: dest, RemoveLocal: true, Databases: []string{"../victim/x"}}
+	dateNow = rightNow{day: "Mon"}
+	notify.FailedDBList, notify.SuccessfulDBList, FailedDBNames = nil, nil, nil
+
+	Backup()
+
+	if _, err := os.Stat(victim); err != nil {
+		t.Fatalf("victim directory was removed: %v", err)
+	}
+	if len(notify.FailedDBList) != 1 || len(notify.SuccessfulDBList) != 0 {
+		t.Errorf("failed %v, successful %v; want 1 and 0", notify.FailedDBList, notify.SuccessfulDBList)
+	}
+}
+
+func TestDumpMSSQLDBRejectsNameOutsideDestination(t *testing.T) {
+	oldParams, oldDateNow := params, dateNow
+	t.Cleanup(func() { params, dateNow = oldParams, oldDateNow })
+	clog.InitializeLogger()
+
+	tree := t.TempDir()
+	dest := filepath.Join(tree, "dest")
+	if err := os.Mkdir(dest, 0o770); err != nil {
+		t.Fatal(err)
+	}
+	params = &config.Params{Database: "mssql", BackupDestination: dest, Rotation: config.Rotation{Enabled: true, Suffix: "day"}}
+	dateNow = rightNow{day: "Mon"}
+
+	if _, _, err := dumpMSSQLDB("../outside/new/x", dest); err == nil {
+		t.Fatal("want an error")
+	}
+	if _, err := os.Stat(filepath.Join(tree, "outside")); !os.IsNotExist(err) {
+		t.Errorf("directory outside the destination was created: %v", err)
 	}
 }

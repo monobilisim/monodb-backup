@@ -228,6 +228,10 @@ func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 		return "", "", err
 	}
 
+	if _, err := dirsFrom(root, dir); err != nil {
+		logger.Error("Refusing to back up " + dbName + " - Error: " + err.Error())
+		return "", "", err
+	}
 	if err := os.MkdirAll(dir, 0o770); err != nil {
 		logger.Error("Couldn't create parent directories at backup destination " + dst + ". Name: " + name + " - Error: " + err.Error())
 		return "", "", err
