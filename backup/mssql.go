@@ -231,6 +231,20 @@ func encryptMSSQLBackup(bakPath string) (string, error) {
 	return archive, nil
 }
 
+// Root.MkdirAll refuses to follow symlinks out of root, which the service account could plant.
+func mkdirUnder(root, dir string) error {
+	rel, err := filepath.Rel(root, dir)
+	if err != nil {
+		return err
+	}
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	return r.MkdirAll(rel, 0o770)
+}
+
 // With rotation off the removed dst is the destination itself, which the operator chowned once.
 func restoreMSSQLDestination() {
 	root, err := filepath.Abs(params.BackupDestination)
@@ -265,7 +279,7 @@ func dumpMSSQLDB(dbName, dst string) (string, string, error) {
 		logger.Error("Refusing to back up " + dbName + " - Error: " + err.Error())
 		return "", "", err
 	}
-	if err := os.MkdirAll(dir, 0o770); err != nil {
+	if err := mkdirUnder(root, dir); err != nil {
 		logger.Error("Couldn't create parent directories at backup destination " + dst + ". Name: " + name + " - Error: " + err.Error())
 		return "", "", err
 	}

@@ -350,3 +350,30 @@ func TestRestoreMSSQLDestinationRecreatesRoot(t *testing.T) {
 		t.Errorf("existing destination was touched: %v", err)
 	}
 }
+
+func TestDumpMSSQLDBDoesNotFollowSymlinkedDir(t *testing.T) {
+	oldParams, oldDateNow := params, dateNow
+	t.Cleanup(func() { params, dateNow = oldParams, oldDateNow })
+	clog.InitializeLogger()
+
+	tree := t.TempDir()
+	dest := filepath.Join(tree, "dest")
+	outside := filepath.Join(tree, "outside")
+	for _, d := range []string{dest, outside} {
+		if err := os.Mkdir(d, 0o770); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(outside, filepath.Join(dest, "Daily")); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	params = &config.Params{Database: "mssql", BackupDestination: dest, Rotation: config.Rotation{Enabled: true, Suffix: "day"}}
+	dateNow = rightNow{day: "Mon"}
+
+	if _, _, err := dumpMSSQLDB("x", filepath.Join(dest, "Daily", "Mon")); err == nil {
+		t.Fatal("want an error")
+	}
+	if entries, _ := os.ReadDir(outside); len(entries) != 0 {
+		t.Errorf("created inside the symlink target: %v", entries)
+	}
+}
