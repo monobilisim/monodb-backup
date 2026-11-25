@@ -217,9 +217,6 @@ func Backup() {
 	mu.Lock()
 	currentDB = ""
 	mu.Unlock()
-	if params.Database == "mssql" {
-		_ = mssqlDB.Close()
-	}
 	logger.Info("monodb-backup non-streamable job finished.")
 }
 
